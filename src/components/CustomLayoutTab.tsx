@@ -441,7 +441,17 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
               {cards.map((card) => {
                 const isEditing = editingCardId === card.id;
 
-                const widthClass = `col-span-1 md:col-span-${card.w}`;
+                const widthClass = card.w === 1
+                  ? 'col-span-1'
+                  : card.w === 2
+                    ? 'col-span-1 md:col-span-2'
+                    : card.w === 3
+                      ? 'col-span-1 md:col-span-3'
+                      : card.w === 4
+                        ? 'col-span-1 md:col-span-4'
+                        : card.w === 5
+                          ? 'col-span-1 md:col-span-5'
+                          : 'col-span-1 md:col-span-6';
 
                 const heightClass = card.h === 'auto'
                   ? 'h-fit min-h-[144px]'
