@@ -185,10 +185,10 @@ export async function exportDashboardHTML(params: {
     });
 
     // Paging status for Data cards
-    const tablePagingState = {}; // cardId -> { currentPage, searchTerm }
+    const tablePagingState = {}; // cardId -> { currentPage, searchTerm, sortBy, sortDesc }
     cards.forEach(card => {
       if (card.type === 'data') {
-        tablePagingState[card.id] = { currentPage: 1, searchTerm: '' };
+        tablePagingState[card.id] = { currentPage: 1, searchTerm: '', sortBy: null, sortDesc: false };
       }
     });
 
@@ -736,6 +736,25 @@ export async function exportDashboardHTML(params: {
         });
       }
 
+      // Apply sorting
+      if (paging.sortBy) {
+        const sortByField = paging.sortBy;
+        const desc = paging.sortDesc;
+        tableData = [...tableData].sort((a, b) => {
+          const valA = a[sortByField];
+          const valB = b[sortByField];
+          if (valA === valB) return 0;
+          if (valA === undefined || valA === null) return 1;
+          if (valB === undefined || valB === null) return -1;
+          if (typeof valA === 'number' && typeof valB === 'number') {
+            return desc ? valB - valA : valA - valB;
+          }
+          const strA = String(valA).toLowerCase();
+          const strB = String(valB).toLowerCase();
+          return desc ? strB.localeCompare(strA) : strA.localeCompare(strB);
+        });
+      }
+
       const totalItems = tableData.length;
       const totalPages = Math.max(1, Math.ceil(totalItems / config.pageSize));
       if (paging.currentPage > totalPages) {
@@ -782,7 +801,7 @@ export async function exportDashboardHTML(params: {
       cardWrapper.appendChild(paginator);
 
       // Draw active content
-      drawTableContents(cardId, paginatedData, config.fields, tableWrapper);
+      drawTableContents(cardId, paginatedData, config.fields, tableWrapper, filteredRecords, config, cardWrapper);
       drawPaginationControls(cardId, paging.currentPage, totalPages, filteredRecords, config, paginator);
     }
 
@@ -798,6 +817,25 @@ export async function exportDashboardHTML(params: {
             const val = String(row[f] !== undefined ? row[f] : '');
             return val.toLowerCase().includes(query);
           });
+        });
+      }
+
+      // Apply sorting
+      if (paging.sortBy) {
+        const sortByField = paging.sortBy;
+        const desc = paging.sortDesc;
+        tableData = [...tableData].sort((a, b) => {
+          const valA = a[sortByField];
+          const valB = b[sortByField];
+          if (valA === valB) return 0;
+          if (valA === undefined || valA === null) return 1;
+          if (valB === undefined || valB === null) return -1;
+          if (typeof valA === 'number' && typeof valB === 'number') {
+            return desc ? valB - valA : valA - valB;
+          }
+          const strA = String(valA).toLowerCase();
+          const strB = String(valB).toLowerCase();
+          return desc ? strB.localeCompare(strA) : strA.localeCompare(strB);
         });
       }
 
@@ -817,11 +855,11 @@ export async function exportDashboardHTML(params: {
 
       const tableWrap = cardWrapper.querySelector("#table-wrap-" + cardId);
       const pagerWrap = cardWrapper.querySelector("#pager-wrap-" + cardId);
-      drawTableContents(cardId, paginatedData, config.fields, tableWrap);
+      drawTableContents(cardId, paginatedData, config.fields, tableWrap, filteredRecords, config, cardWrapper);
       drawPaginationControls(cardId, paging.currentPage, totalPages, filteredRecords, config, pagerWrap);
     }
 
-    function drawTableContents(cardId, rows, fields, targetWrapper) {
+    function drawTableContents(cardId, rows, fields, targetWrapper, filteredRecords, config, cardWrapper) {
       const wrapper = targetWrapper || document.getElementById("table-wrap-" + cardId);
       if (!wrapper) return;
       wrapper.innerHTML = '';
@@ -840,8 +878,39 @@ export async function exportDashboardHTML(params: {
 
       fields.forEach(f => {
         const th = document.createElement('th');
-        th.className = 'px-4 py-3 font-semibold text-slate-600 dark:text-slate-300';
-        th.innerText = f;
+        th.className = 'px-4 py-3 font-semibold text-slate-600 dark:text-slate-300 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/60 select-none';
+        
+        const paging = tablePagingState[cardId];
+        const isSorted = paging.sortBy === f;
+        const isDesc = paging.sortDesc;
+
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'flex items-center gap-1';
+        
+        const textSpan = document.createElement('span');
+        textSpan.innerText = f;
+        headerDiv.appendChild(textSpan);
+        
+        const indicatorSpan = document.createElement('span');
+        indicatorSpan.style.color = isSorted ? '#6366f1' : '#cbd5e1';
+        indicatorSpan.style.fontSize = '10px';
+        indicatorSpan.innerText = isSorted ? (isDesc ? ' ▼' : ' ▲') : ' ↕';
+        headerDiv.appendChild(indicatorSpan);
+        
+        th.appendChild(headerDiv);
+
+        th.addEventListener('click', () => {
+          const isCurrent = paging.sortBy === f;
+          const nextDesc = isCurrent ? !paging.sortDesc : false;
+          const nextSortBy = isCurrent && paging.sortDesc ? null : f;
+
+          paging.sortBy = nextSortBy;
+          paging.sortDesc = nextSortBy ? nextDesc : false;
+          paging.currentPage = 1;
+
+          updateTableSubComponents(cardId, cardWrapper, filteredRecords, config);
+        });
+
         headerRow.appendChild(th);
       });
       thead.appendChild(headerRow);

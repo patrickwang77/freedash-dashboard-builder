@@ -94,8 +94,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     return init;
   });
 
-  // Table paging and search: cardId -> { page, search }
-  const [tableStates, setTableStates] = useState<Record<string, { page: number; search: string }>>({});
+  // Table paging and search: cardId -> { page, search, sortBy, sortDesc }
+  const [tableStates, setTableStates] = useState<Record<string, { page: number; search: string; sortBy?: string; sortDesc?: boolean }>>({});
 
   // Reset all slicer selections
   const handleResetFilters = () => {
@@ -667,7 +667,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
               if (card.type === 'data') {
                 const config = card.config as any;
-                const state = tableStates[card.id] || { page: 1, search: '' };
+                const state = tableStates[card.id] || { page: 1, search: '', sortBy: undefined, sortDesc: false };
 
                 // Apply search in React
                 let tData = filteredData;
@@ -680,6 +680,28 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                   );
                 }
 
+                // Apply sorting in React
+                if (state.sortBy) {
+                  const sortByField = state.sortBy;
+                  const desc = !!state.sortDesc;
+                  tData = [...tData].sort((a, b) => {
+                    const valA = a[sortByField];
+                    const valB = b[sortByField];
+
+                    if (valA === valB) return 0;
+                    if (valA === undefined || valA === null) return 1;
+                    if (valB === undefined || valB === null) return -1;
+
+                    if (typeof valA === 'number' && typeof valB === 'number') {
+                      return desc ? valB - valA : valA - valB;
+                    }
+
+                    const strA = String(valA).toLowerCase();
+                    const strB = String(valB).toLowerCase();
+                    return desc ? strB.localeCompare(strA) : strA.localeCompare(strB);
+                  });
+                }
+
                 const total = tData.length;
                 const pages = Math.max(1, Math.ceil(total / config.pageSize));
                 const activePage = Math.min(state.page, pages);
@@ -689,7 +711,23 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                 const handleSearchChange = (val: string) => {
                   setTableStates((prev) => ({
                     ...prev,
-                    [card.id]: { page: 1, search: val }
+                    [card.id]: { page: 1, search: val, sortBy: state.sortBy, sortDesc: state.sortDesc }
+                  }));
+                };
+
+                const handleSortChange = (field: string) => {
+                  const isCurrent = state.sortBy === field;
+                  const nextDesc = isCurrent ? !state.sortDesc : false;
+                  const nextSortBy = isCurrent && state.sortDesc ? undefined : field;
+
+                  setTableStates((prev) => ({
+                    ...prev,
+                    [card.id]: {
+                      ...state,
+                      page: 1,
+                      sortBy: nextSortBy,
+                      sortDesc: nextSortBy ? nextDesc : false
+                    }
                   }));
                 };
 
@@ -736,9 +774,24 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                         <table className="w-full text-xs text-left border-collapse">
                           <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 font-bold uppercase">
                             <tr>
-                              {config.fields.map((f: string) => (
-                                <th key={f} className="px-4 py-2.5 font-bold text-slate-600 dark:text-slate-350">{f}</th>
-                              ))}
+                              {config.fields.map((f: string) => {
+                                const isSorted = state.sortBy === f;
+                                const isDesc = !!state.sortDesc;
+                                return (
+                                  <th
+                                    key={f}
+                                    onClick={() => handleSortChange(f)}
+                                    className="px-4 py-2.5 font-bold text-slate-600 dark:text-slate-355 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-850/60 select-none group"
+                                  >
+                                    <div className="flex items-center gap-1">
+                                      <span>{f}</span>
+                                      <span className="text-[10px] text-slate-300 dark:text-slate-600 group-hover:text-slate-450 transition-colors">
+                                        {isSorted ? (isDesc ? '▼' : '▲') : '↕'}
+                                      </span>
+                                    </div>
+                                  </th>
+                                );
+                              })}
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
