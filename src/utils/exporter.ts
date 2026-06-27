@@ -38,23 +38,23 @@ export async function exportDashboardHTML(params: {
 
   // Define Theme Color mappings for Tailwind v4 Custom Theme Variables
   const colorPalettes: Record<string, { primary: string; primaryHover: string; gradientStart: string; gradientEnd: string }> = {
-    indigo: { primary: '#4f46e5', primaryHover: '#4338ca', gradientStart: '#4f46e5', gradientEnd: '#818cf8' },
-    emerald: { primary: '#059669', primaryHover: '#047857', gradientStart: '#059669', gradientEnd: '#34d399' },
-    rose: { primary: '#e11d48', primaryHover: '#be123c', gradientStart: '#e11d48', gradientEnd: '#fb7185' },
-    amber: { primary: '#d97706', primaryHover: '#b45309', gradientStart: '#d97706', gradientEnd: '#fbbf24' },
-    slate: { primary: '#475569', primaryHover: '#334155', gradientStart: '#475569', gradientEnd: '#94a3b8' },
-    violet: { primary: '#7c3aed', primaryHover: '#6d28d9', gradientStart: '#7c3aed', gradientEnd: '#a78bfa' },
-    space: { primary: '#38bdf8', primaryHover: '#0ea5e9', gradientStart: '#38bdf8', gradientEnd: '#818cf8' }
+    earthy: { primary: '#2e7d32', primaryHover: '#1b5e20', gradientStart: '#2e7d32', gradientEnd: '#a3cfbb' },
+    vibrant: { primary: '#2563eb', primaryHover: '#1d4ed8', gradientStart: '#2563eb', gradientEnd: '#f87171' },
+    highcontrast: { primary: '#0f172a', primaryHover: '#020617', gradientStart: '#0f172a', gradientEnd: '#f59e0b' },
+    trust: { primary: '#1e40af', primaryHover: '#1e3a8a', gradientStart: '#1e40af', gradientEnd: '#34d399' },
+    blackwhite: { primary: '#334155', primaryHover: '#1e293b', gradientStart: '#334155', gradientEnd: '#94a3b8' },
+    neon: { primary: '#7e22ce', primaryHover: '#6b21a8', gradientStart: '#7e22ce', gradientEnd: '#06b6d4' },
+    pastel: { primary: '#db2777', primaryHover: '#be185d', gradientStart: '#db2777', gradientEnd: '#5eead4' }
   };
 
   const palette = theme.name === 'custom'
     ? {
-        primary: theme.customPrimary || '#4f46e5',
-        primaryHover: theme.customPrimary || '#4338ca',
-        gradientStart: theme.customPrimary || '#4f46e5',
-        gradientEnd: theme.customSecondary || '#818cf8'
+        primary: theme.customPrimary || '#1e40af',
+        primaryHover: theme.customPrimary || '#1e3a8a',
+        gradientStart: theme.customPrimary || '#1e40af',
+        gradientEnd: theme.customSecondary || '#34d399'
       }
-    : (colorPalettes[theme.name] || colorPalettes.indigo);
+    : (colorPalettes[theme.name] || colorPalettes.trust);
 
   // Build the script tags. Inlining the source if successfully fetched, else loading via CDN link.
   const tailwindScriptTag = fetchedTailwind
@@ -174,7 +174,7 @@ export async function exportDashboardHTML(params: {
     let rawData = window.__DASHBOARD_DATA__ || [];
     const columns = window.__DASHBOARD_COLUMNS__ || [];
     const cards = window.__DASHBOARD_CARDS__ || [];
-    const activeTheme = window.__DASHBOARD_THEME__ || { name: 'indigo', mode: 'light' };
+    const activeTheme = window.__DASHBOARD_THEME__ || { name: 'trust', mode: 'light' };
     const slicerFields = window.__DASHBOARD_SLICERS__ || [];
     const calculatedColumns = window.__DASHBOARD_CALCULATED_COLUMNS__ || [];
 
@@ -501,18 +501,18 @@ export async function exportDashboardHTML(params: {
       }
 
       const pieThemeColors = {
-        indigo: ['#4f46e5', '#60a5fa', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#94a3b8', '#38bdf8', '#f43f5e', '#a7f3d0'],
-        emerald: ['#059669', '#60a5fa', '#fbbf24', '#34d399', '#0d9488', '#c084fc', '#fb923c', '#475569', '#fda4af', '#fef08a'],
-        rose: ['#e11d48', '#fda4af', '#a78bfa', '#f59e0b', '#64748b', '#0f766e', '#f97316', '#94a3b8', '#a7f3d0', '#fbbf24'],
-        amber: ['#d97706', '#f97316', '#475569', '#0d9488', '#8b5cf6', '#fb7185', '#38bdf8', '#86efac', '#fef08a', '#78350f'],
-        slate: ['#475569', '#94a3b8', '#0d9488', '#4f46e5', '#8b5cf6', '#10b981', '#60a5fa', '#fb923c', '#f43f5e', '#fbbf24'],
-        violet: ['#7c3aed', '#c084fc', '#10b981', '#f43f5e', '#4f46e5', '#64748b', '#fbbf24', '#3b82f6', '#db2777', '#a7f3d0'],
-        space: ['#38bdf8', '#818cf8', '#3b82f6', '#4f46e5', '#a78bfa', '#34d399', '#60a5fa', '#fb923c', '#f43f5e', '#fbbf24']
+        earthy: ['#2e7d32', '#4b7c59', '#78909c', '#607d8b', '#8d6e63', '#a1887f', '#d7ccc8', '#c5e1a5', '#e6ee9c', '#fff9c4'],
+        vibrant: ['#2563eb', '#3b82f6', '#ef4444', '#f57c00', '#fbc02d', '#059669', '#10b981', '#7c3aed', '#ec4899', '#06b6d4'],
+        highcontrast: ['#0f172a', '#1e293b', '#334155', '#fbbf24', '#d97706', '#92400e', '#7c3aed', '#5b21b6', '#0f766e', '#0d9488'],
+        trust: ['#1e40af', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#10b981', '#34d399', '#a7f3d0', '#0d9488', '#14b8a6'],
+        blackwhite: ['#1e293b', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1', '#e2e8f0', '#f1f5f9', '#f8fafc', '#94a3b8'],
+        neon: ['#a21caf', '#d946ef', '#06b6d4', '#22d3ee', '#f43f5e', '#fb7185', '#ec4899', '#f472b6', '#7c3aed', '#a78bfa'],
+        pastel: ['#fbcfe8', '#e9d5ff', '#ccfbf1', '#c084fc', '#f472b6', '#2dd4bf', '#fed7aa', '#fef08a', '#bfdbfe', '#a7f3d0']
       };
 
       const activePieColors = activeTheme.name === 'custom'
-        ? [activeTheme.customPrimary || '#4f46e5', activeTheme.customSecondary || '#818cf8', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#38bdf8', '#f43f5e', '#a7f3d0', '#60a5fa']
-        : (pieThemeColors[activeTheme.name] || pieThemeColors.indigo);
+        ? [activeTheme.customPrimary || '#1e40af', activeTheme.customSecondary || '#34d399', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#38bdf8', '#f43f5e', '#a7f3d0', '#60a5fa']
+        : (pieThemeColors[activeTheme.name] || pieThemeColors.trust);
 
       let chartJsType = 'bar';
       if (isPie || isProgress) chartJsType = 'doughnut';

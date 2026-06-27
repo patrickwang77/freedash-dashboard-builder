@@ -188,32 +188,32 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
   // Color Palettes
   const brandColors: Record<string, string> = {
-    indigo: '#4f46e5',
-    emerald: '#059669',
-    rose: '#e11d48',
-    amber: '#d97706',
-    slate: '#475569',
-    violet: '#7c3aed',
-    space: '#38bdf8'
+    earthy: '#2e7d32',
+    vibrant: '#2563eb',
+    highcontrast: '#0f172a',
+    trust: '#1e40af',
+    blackwhite: '#334155',
+    neon: '#7e22ce',
+    pastel: '#db2777'
   };
 
   const brandColorsLight: Record<string, string> = {
-    indigo: '#818cf8',
-    emerald: '#34d399',
-    rose: '#fb7185',
-    amber: '#fbbf24',
-    slate: '#94a3b8',
-    violet: '#a78bfa',
-    space: '#7dd3fc'
+    earthy: '#a3cfbb',
+    vibrant: '#f87171',
+    highcontrast: '#f59e0b',
+    trust: '#34d399',
+    blackwhite: '#94a3b8',
+    neon: '#06b6d4',
+    pastel: '#5eead4'
   };
 
   const activeBrandColor = theme.name === 'custom'
-    ? (theme.customPrimary || '#4f46e5')
-    : (brandColors[theme.name] || brandColors.indigo);
+    ? (theme.customPrimary || '#1e40af')
+    : (brandColors[theme.name] || brandColors.trust);
 
   const activeBrandLightColor = theme.name === 'custom'
-    ? (theme.customSecondary || '#818cf8')
-    : (brandColorsLight[theme.name] || brandColorsLight.indigo);
+    ? (theme.customSecondary || '#34d399')
+    : (brandColorsLight[theme.name] || brandColorsLight.trust);
 
   // Chart configuration builder
   const buildChartProps = (card: DashboardCard) => {
@@ -245,18 +245,18 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     };
 
     const pieThemeColors: Record<string, string[]> = {
-      indigo: ['#4f46e5', '#60a5fa', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#94a3b8', '#38bdf8', '#f43f5e', '#a7f3d0'],
-      emerald: ['#059669', '#60a5fa', '#fbbf24', '#34d399', '#0d9488', '#c084fc', '#fb923c', '#475569', '#fda4af', '#fef08a'],
-      rose: ['#e11d48', '#fda4af', '#a78bfa', '#f59e0b', '#64748b', '#0f766e', '#f97316', '#94a3b8', '#a7f3d0', '#fbbf24'],
-      amber: ['#d97706', '#f97316', '#475569', '#0d9488', '#8b5cf6', '#fb7185', '#38bdf8', '#86efac', '#fef08a', '#78350f'],
-      slate: ['#475569', '#94a3b8', '#0d9488', '#4f46e5', '#8b5cf6', '#10b981', '#60a5fa', '#fb923c', '#f43f5e', '#fbbf24'],
-      violet: ['#7c3aed', '#c084fc', '#10b981', '#f43f5e', '#4f46e5', '#64748b', '#fbbf24', '#3b82f6', '#db2777', '#a7f3d0'],
-      space: ['#38bdf8', '#818cf8', '#3b82f6', '#4f46e5', '#a78bfa', '#34d399', '#60a5fa', '#fb923c', '#f43f5e', '#fbbf24']
+      earthy: ['#2e7d32', '#4b7c59', '#78909c', '#607d8b', '#8d6e63', '#a1887f', '#d7ccc8', '#c5e1a5', '#e6ee9c', '#fff9c4'],
+      vibrant: ['#2563eb', '#3b82f6', '#ef4444', '#f57c00', '#fbc02d', '#059669', '#10b981', '#7c3aed', '#ec4899', '#06b6d4'],
+      highcontrast: ['#0f172a', '#1e293b', '#334155', '#fbbf24', '#d97706', '#92400e', '#7c3aed', '#5b21b6', '#0f766e', '#0d9488'],
+      trust: ['#1e40af', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#10b981', '#34d399', '#a7f3d0', '#0d9488', '#14b8a6'],
+      blackwhite: ['#1e293b', '#334155', '#475569', '#64748b', '#94a3b8', '#cbd5e1', '#e2e8f0', '#f1f5f9', '#f8fafc', '#94a3b8'],
+      neon: ['#a21caf', '#d946ef', '#06b6d4', '#22d3ee', '#f43f5e', '#fb7185', '#ec4899', '#f472b6', '#7c3aed', '#a78bfa'],
+      pastel: ['#fbcfe8', '#e9d5ff', '#ccfbf1', '#c084fc', '#f472b6', '#2dd4bf', '#fed7aa', '#fef08a', '#bfdbfe', '#a7f3d0']
     };
 
     const activePieColors = theme.name === 'custom'
-      ? [theme.customPrimary || '#4f46e5', theme.customSecondary || '#818cf8', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#38bdf8', '#f43f5e', '#a7f3d0', '#60a5fa']
-      : (pieThemeColors[theme.name] || pieThemeColors.indigo);
+      ? [theme.customPrimary || '#1e40af', theme.customSecondary || '#34d399', '#34d399', '#fbbf24', '#f87171', '#a78bfa', '#38bdf8', '#f43f5e', '#a7f3d0', '#60a5fa']
+      : (pieThemeColors[theme.name] || pieThemeColors.trust);
 
     let chartData: any;
     let chartOptions: any;

@@ -56,7 +56,7 @@ export interface DashboardCard {
   config: IndicatorConfig | ChartConfig | DataConfig;
 }
 
-export type ThemeName = 'indigo' | 'emerald' | 'rose' | 'amber' | 'slate' | 'violet' | 'space' | 'custom';
+export type ThemeName = 'earthy' | 'vibrant' | 'highcontrast' | 'trust' | 'blackwhite' | 'neon' | 'pastel' | 'custom';
 export type ThemeMode = 'light' | 'dark' | 'system';
 
 export interface ThemeConfig {

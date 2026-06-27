@@ -19,7 +19,7 @@ function App() {
 
   // Theme settings state
   const [theme, setTheme] = useState<ThemeConfig>({
-    name: 'indigo',
+    name: 'trust',
     mode: 'light'
   });
 
@@ -82,22 +82,22 @@ function App() {
 
   // Color Palette Theme values
   const colorPalettes: Record<string, { primary: string; primaryHover: string; gradientEnd: string }> = {
-    indigo: { primary: '#4f46e5', primaryHover: '#4338ca', gradientEnd: '#818cf8' },
-    emerald: { primary: '#059669', primaryHover: '#047857', gradientEnd: '#34d399' },
-    rose: { primary: '#e11d48', primaryHover: '#be123c', gradientEnd: '#fb7185' },
-    amber: { primary: '#d97706', primaryHover: '#b45309', gradientEnd: '#fbbf24' },
-    slate: { primary: '#475569', primaryHover: '#334155', gradientEnd: '#94a3b8' },
-    violet: { primary: '#7c3aed', primaryHover: '#6d28d9', gradientEnd: '#a78bfa' },
-    space: { primary: '#38bdf8', primaryHover: '#0ea5e9', gradientEnd: '#818cf8' }
+    earthy: { primary: '#2e7d32', primaryHover: '#1b5e20', gradientEnd: '#a3cfbb' },
+    vibrant: { primary: '#2563eb', primaryHover: '#1d4ed8', gradientEnd: '#f87171' },
+    highcontrast: { primary: '#0f172a', primaryHover: '#020617', gradientEnd: '#f59e0b' },
+    trust: { primary: '#1e40af', primaryHover: '#1e3a8a', gradientEnd: '#34d399' },
+    blackwhite: { primary: '#334155', primaryHover: '#1e293b', gradientEnd: '#94a3b8' },
+    neon: { primary: '#7e22ce', primaryHover: '#6b21a8', gradientEnd: '#06b6d4' },
+    pastel: { primary: '#db2777', primaryHover: '#be185d', gradientEnd: '#5eead4' }
   };
 
   const palette = theme.name === 'custom'
     ? {
-        primary: theme.customPrimary || '#4f46e5',
-        primaryHover: theme.customPrimary || '#4338ca',
-        gradientEnd: theme.customSecondary || '#818cf8'
+        primary: theme.customPrimary || '#1e40af',
+        primaryHover: theme.customPrimary || '#1e3a8a',
+        gradientEnd: theme.customSecondary || '#34d399'
       }
-    : (colorPalettes[theme.name] || colorPalettes.indigo);
+    : (colorPalettes[theme.name] || colorPalettes.trust);
 
   // File loading callback
   const handleDataLoaded = (newColumns: DataColumn[], newData: any[], newFileName: string) => {
