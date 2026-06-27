@@ -147,8 +147,8 @@ export async function exportDashboardHTML(params: {
 
       <!-- Right Main Dashboard Layout -->
       <main class="lg:col-span-3 space-y-6">
-        <!-- Dashboard Grid of Cards (4 Columns Canvas) -->
-        <div id="dashboardGrid" class="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <!-- Dashboard Grid of Cards (6 Columns Canvas) -->
+        <div id="dashboardGrid" class="grid grid-cols-1 md:grid-cols-6 gap-3">
           <!-- Dynamic Dashboard Cards will be injected here -->
         </div>
       </main>
@@ -358,14 +358,12 @@ export async function exportDashboardHTML(params: {
         const cardWrapper = document.createElement('div');
         
         // Dynamic Column Span Mapping
-        let widthClass = 'col-span-1';
-        if (card.w === 2) widthClass = 'col-span-1 md:col-span-2';
-        else if (card.w === 3) widthClass = 'col-span-1 md:col-span-3';
-        else if (card.w === 4) widthClass = 'col-span-1 md:col-span-4';
+        const widthClass = 'col-span-1 md:col-span-' + card.w;
 
         // Dynamic Height Mapping
         let heightClass = 'min-h-[290px]';
-        if (card.h === 'sm') heightClass = 'min-h-[140px] justify-between';
+        if (card.h === 'auto') heightClass = 'h-fit min-h-[140px]';
+        else if (card.h === 'sm') heightClass = 'min-h-[140px] justify-between';
         else if (card.h === 'lg') heightClass = 'min-h-[420px]';
 
         cardWrapper.className = widthClass + ' ' + heightClass + ' bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-105 dark:border-slate-700/50 flex flex-col transition-all';
@@ -429,7 +427,7 @@ export async function exportDashboardHTML(params: {
           
           let chartH = 'h-60';
           if (card.h === 'lg') chartH = 'h-96';
-          else if (card.h === 'sm') chartH = 'h-24';
+          else if (card.h === 'sm') chartH = 'h-28';
           body.className = 'flex-1 relative flex items-center justify-center w-full ' + chartH;
           
           const canvas = document.createElement('canvas');

@@ -107,8 +107,8 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
       id: `card_${Date.now()}`,
       type: newCardType,
       title: newCardTitle.trim(),
-      w: newCardType === 'indicator' ? 1 : 2,
-      h: newCardType === 'indicator' ? 'sm' : 'md',
+      w: newCardType === 'indicator' ? 2 : newCardType === 'chart' ? 3 : 6,
+      h: 'auto',
       config
     };
 
@@ -166,7 +166,7 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
   const adjustWidth = (id: string, delta: number) => {
     const updated = cards.map((c) => {
       if (c.id === id) {
-        const nextW = Math.max(1, Math.min(4, c.w + delta)) as 1 | 2 | 3 | 4;
+        const nextW = Math.max(1, Math.min(6, c.w + delta)) as 1 | 2 | 3 | 4 | 5 | 6;
         return { ...c, w: nextW };
       }
       return c;
@@ -175,11 +175,11 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
   };
 
   const adjustHeight = (id: string, delta: number) => {
-    const heights: ('sm' | 'md' | 'lg')[] = ['sm', 'md', 'lg'];
+    const heights: ('auto' | 'sm' | 'md' | 'lg')[] = ['auto', 'sm', 'md', 'lg'];
     const updated = cards.map((c) => {
       if (c.id === id) {
         const currentIdx = heights.indexOf(c.h);
-        const nextIdx = Math.max(0, Math.min(2, currentIdx + delta));
+        const nextIdx = Math.max(0, Math.min(3, currentIdx + delta));
         return { ...c, h: heights[nextIdx] };
       }
       return c;
@@ -437,23 +437,19 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
               <p className="text-xs text-slate-405">拖曳設計畫布為空。請由左側新增卡片，或從範本頁籤匯入佈局。</p>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 bg-slate-100/50 dark:bg-slate-900/50 p-4 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl min-h-[400px]">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-3 bg-slate-100/50 dark:bg-slate-900/50 p-3.5 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl min-h-[400px]">
               {cards.map((card) => {
                 const isEditing = editingCardId === card.id;
 
-                const widthClass = card.w === 1
-                  ? 'col-span-1'
-                  : card.w === 2
-                    ? 'col-span-1 md:col-span-2'
-                    : card.w === 3
-                      ? 'col-span-1 md:col-span-3'
-                      : 'col-span-1 md:col-span-4';
+                const widthClass = `col-span-1 md:col-span-${card.w}`;
 
-                const heightClass = card.h === 'sm'
-                  ? 'h-32'
-                  : card.h === 'md'
-                    ? 'h-48'
-                    : 'h-64';
+                const heightClass = card.h === 'auto'
+                  ? 'h-fit min-h-[144px]'
+                  : card.h === 'sm'
+                    ? 'h-32'
+                    : card.h === 'md'
+                      ? 'h-48'
+                      : 'h-64';
 
                 return (
                   <div
@@ -615,23 +611,26 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                   }}
                   className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand focus:outline-none"
                 >
-                  <option value={1}>1 單位寬 (25% 寬度)</option>
-                  <option value={2}>2 單位寬 (50% 寬度)</option>
-                  <option value={3}>3 單位寬 (75% 寬度)</option>
-                  <option value={4}>4 單位寬 (100% 滿版)</option>
+                  <option value={1}>1 欄寬 (16.7% 寬度)</option>
+                  <option value={2}>2 欄寬 (33.3% 寬度)</option>
+                  <option value={3}>3 欄寬 (50% 寬度)</option>
+                  <option value={4}>4 欄寬 (66.7% 寬度)</option>
+                  <option value={5}>5 欄寬 (83.3% 寬度)</option>
+                  <option value={6}>6 欄寬 (100% 滿版)</option>
                 </select>
               </div>
 
               <div>
                 <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-1.5">卡片高度</label>
                 <select
-                  value={editingCard.h || 'md'}
+                  value={editingCard.h || 'auto'}
                   onChange={(e) => {
                     const updated = cards.map((c) => c.id === editingCard.id ? { ...c, h: e.target.value as any } : c);
                     onUpdateCards(updated);
                   }}
                   className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand focus:outline-none"
                 >
+                  <option value="auto">自動高度 (h-fit)</option>
                   <option value="sm">矮卡片 (sm)</option>
                   <option value="md">中等卡片 (md)</option>
                   <option value="lg">高卡片 (lg)</option>

@@ -51,8 +51,8 @@ export interface DashboardCard {
   id: string;
   type: CardType;
   title: string;
-  w: 1 | 2 | 3 | 4; // grid column width: 1, 2, 3, or 4 cols
-  h: 'sm' | 'md' | 'lg'; // height: sm, md, lg
+  w: 1 | 2 | 3 | 4 | 5 | 6; // grid column width: 1 to 6 cols
+  h: 'auto' | 'sm' | 'md' | 'lg'; // height: auto, sm, md, lg
   config: IndicatorConfig | ChartConfig | DataConfig;
 }
 

@@ -40,23 +40,23 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
     {
       id: 'template_executive',
       name: '👑 核心決策經營看板 (Executive Overview)',
-      description: '最經典的主管經營決策佈局。頂部放置三大營運核心KPI，中間為不對稱配置的主視覺折線趨勢圖 (寬3) 與類別佔比圓餅圖 (寬1)，底端呈現完整明細表。',
+      description: '最經典的主管經營決策佈局。頂部放置三大營運核心KPI，中間為不對稱配置的主視覺折線趨勢圖 (寬4) 與類別佔比圓餅圖 (寬2)，底端呈現完整明細表。',
       slicers: [defaultText, defaultBool].filter(Boolean) as string[],
       cards: [
         {
           id: 'kpi_total_sales',
           type: 'indicator' as const,
           title: `總${defaultNum || '營收'}`,
-          w: 1 as const,
-          h: 'sm' as const,
+          w: 2 as const,
+          h: 'auto' as const,
           config: { field: defaultNum, agg: 'sum' as const, prefix: '$', suffix: '' }
         },
         {
           id: 'kpi_avg_price',
           type: 'indicator' as const,
           title: `平均${secondNum || '數值'}`,
-          w: 1 as const,
-          h: 'sm' as const,
+          w: 2 as const,
+          h: 'auto' as const,
           config: { field: secondNum, agg: 'avg' as const, prefix: '$', suffix: '' }
         },
         {
@@ -64,15 +64,15 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           type: 'indicator' as const,
           title: '總交易筆數',
           w: 2 as const,
-          h: 'sm' as const,
+          h: 'auto' as const,
           config: { field: defaultNum || columns[0]?.name || '', agg: 'count' as const, prefix: '', suffix: ' 筆' }
         },
         {
           id: 'chart_line_sales_trend',
           type: 'chart' as const,
           title: `營運趨勢走向分析`,
-          w: 3 as const,
-          h: 'md' as const,
+          w: 4 as const,
+          h: 'auto' as const,
           config: {
             type: 'line' as const,
             xAxis: defaultDate || defaultText,
@@ -84,8 +84,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           id: 'chart_pie_category',
           type: 'chart' as const,
           title: `${defaultText || '類別'}比例`,
-          w: 1 as const,
-          h: 'md' as const,
+          w: 2 as const,
+          h: 'auto' as const,
           config: {
             type: 'pie' as const,
             xAxis: defaultText,
@@ -97,8 +97,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           id: 'table_details',
           type: 'data' as const,
           title: '明細數據資料表',
-          w: 4 as const,
-          h: 'md' as const,
+          w: 6 as const,
+          h: 'auto' as const,
           config: {
             pageSize: 10,
             fields: columns.slice(0, 8).map((c) => c.name)
@@ -116,24 +116,24 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           id: 'kpi_total_sales',
           type: 'indicator' as const,
           title: `累積銷售總額`,
-          w: 2 as const,
-          h: 'sm' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: { field: defaultNum, agg: 'sum' as const, prefix: '$', suffix: '' }
         },
         {
           id: 'kpi_avg_price',
           type: 'indicator' as const,
           title: `平均單筆金額`,
-          w: 2 as const,
-          h: 'sm' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: { field: defaultNum, agg: 'avg' as const, prefix: '$', suffix: '' }
         },
         {
           id: 'chart_bar_region_sales',
           type: 'chart' as const,
           title: `直向對比分析`,
-          w: 2 as const,
-          h: 'md' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: {
             type: 'bar' as const,
             xAxis: secondText || defaultText,
@@ -145,8 +145,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           id: 'chart_hbar_product_sales',
           type: 'chart' as const,
           title: `橫向分佈排名`,
-          w: 2 as const,
-          h: 'md' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: {
             type: 'line-horizontal' as const,
             xAxis: defaultText,
@@ -158,8 +158,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           id: 'table_details',
           type: 'data' as const,
           title: '區域明細對照',
-          w: 2 as const,
-          h: 'md' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: {
             pageSize: 5,
             fields: columns.slice(0, 6).map((c) => c.name)
@@ -169,8 +169,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           id: 'chart_area_regional_trend',
           type: 'chart' as const,
           title: '業績走勢走向 (面積圖)',
-          w: 2 as const,
-          h: 'md' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: {
             type: 'area' as const,
             xAxis: defaultDate || defaultText,
@@ -183,31 +183,31 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
     {
       id: 'template_product',
       name: '🛍️ 商品效能與排行分析 (Rank & Detail View)',
-      description: '為產品經理與業務人員打造。頂部置放最大與最小指標，中間層將熱銷商品排名水平長條圖與商品明細列表對稱排列（高h=lg），極大化單品效能對照。',
+      description: '為產品經理與業務人員打造。頂部置放最大與最小指標，中間層將熱銷商品排名水平長條圖與商品明細列表對稱排列，極大化單品效能對照。',
       slicers: [defaultText, secondText].filter(Boolean) as string[],
       cards: [
         {
           id: 'kpi_max_price',
           type: 'indicator' as const,
           title: `單筆最高銷售`,
-          w: 2 as const,
-          h: 'sm' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: { field: defaultNum, agg: 'max' as const, prefix: '$', suffix: '' }
         },
         {
           id: 'kpi_min_price',
           type: 'indicator' as const,
           title: `單筆最低銷售`,
-          w: 2 as const,
-          h: 'sm' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: { field: defaultNum, agg: 'min' as const, prefix: '$', suffix: '' }
         },
         {
           id: 'chart_hbar_product_sales',
           type: 'chart' as const,
           title: `${defaultText || '類別'}熱銷排名`,
-          w: 2 as const,
-          h: 'lg' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: {
             type: 'line-horizontal' as const,
             xAxis: defaultText,
@@ -219,8 +219,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           id: 'table_details',
           type: 'data' as const,
           title: '商品明細清單',
-          w: 2 as const,
-          h: 'lg' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: {
             pageSize: 10,
             fields: columns.slice(0, 6).map((c) => c.name)
@@ -230,8 +230,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           id: 'chart_pie_category',
           type: 'chart' as const,
           title: `銷售佔比圓餅`,
-          w: 2 as const,
-          h: 'md' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: {
             type: 'pie' as const,
             xAxis: defaultText,
@@ -243,8 +243,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           id: 'chart_bar_product_qty',
           type: 'chart' as const,
           title: `產品總數分佈`,
-          w: 2 as const,
-          h: 'md' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: {
             type: 'bar' as const,
             xAxis: defaultText,
@@ -264,40 +264,40 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           id: 'kpi_total_sales',
           type: 'indicator' as const,
           title: `總銷售額`,
-          w: 1 as const,
-          h: 'sm' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: { field: defaultNum, agg: 'sum' as const, prefix: '$', suffix: '' }
         },
         {
           id: 'kpi_avg_price',
           type: 'indicator' as const,
           title: `平均金額`,
-          w: 1 as const,
-          h: 'sm' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: { field: defaultNum, agg: 'avg' as const, prefix: '$', suffix: '' }
         },
         {
           id: 'kpi_count_transactions',
           type: 'indicator' as const,
           title: '總交易量',
-          w: 1 as const,
-          h: 'sm' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: { field: defaultNum || columns[0]?.name || '', agg: 'count' as const, prefix: '', suffix: ' 筆' }
         },
         {
           id: 'kpi_total_qty',
           type: 'indicator' as const,
           title: `累積件數`,
-          w: 1 as const,
-          h: 'sm' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: { field: secondNum, agg: 'sum' as const, prefix: '', suffix: ' 件' }
         },
         {
           id: 'chart_area_tracker_trend',
           type: 'chart' as const,
           title: '整體業務增長走勢 (面積圖)',
-          w: 4 as const,
-          h: 'lg' as const,
+          w: 6 as const,
+          h: 'auto' as const,
           config: {
             type: 'area' as const,
             xAxis: defaultDate || defaultText,
@@ -309,8 +309,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           id: 'chart_pie_category',
           type: 'chart' as const,
           title: '佔比比例分佈',
-          w: 2 as const,
-          h: 'md' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: {
             type: 'pie' as const,
             xAxis: defaultText,
@@ -322,8 +322,8 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
           id: 'chart_line_tracker_trend',
           type: 'chart' as const,
           title: '折線波動趨勢',
-          w: 2 as const,
-          h: 'md' as const,
+          w: 3 as const,
+          h: 'auto' as const,
           config: {
             type: 'line' as const,
             xAxis: defaultDate || defaultText,
@@ -379,72 +379,72 @@ export const TemplatesTab: React.FC<TemplatesTabProps> = ({
                       </p>
                       
                       {/* Visual Mockup Preview */}
-                      <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-3 border border-slate-100 dark:border-slate-800/80 grid grid-cols-4 gap-2 w-full mt-4 h-28 pointer-events-none">
+                      <div className="bg-slate-50 dark:bg-slate-900 rounded-xl p-3 border border-slate-100 dark:border-slate-800/80 grid grid-cols-6 gap-1.5 w-full mt-4 h-28 pointer-events-none">
                         {tpl.id === 'template_executive' && (
                           <>
-                            <div className="col-span-1 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
-                            <div className="col-span-1 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
                             <div className="col-span-2 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
-                            <div className="col-span-3 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-2 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
+                            <div className="col-span-2 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
+                            <div className="col-span-4 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <LineChart className="w-3.5 h-3.5 text-slate-400" />
                             </div>
-                            <div className="col-span-1 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-2 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <PieChart className="w-3.5 h-3.5 text-slate-400" />
                             </div>
-                            <div className="col-span-4 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-6 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <Table className="w-3.5 h-3.5 text-slate-400" />
                             </div>
                           </>
                         )}
                         {tpl.id === 'template_regional' && (
                           <>
-                            <div className="col-span-2 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
-                            <div className="col-span-2 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
-                            <div className="col-span-2 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-3 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
+                            <div className="col-span-3 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
+                            <div className="col-span-3 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <BarChart3 className="w-3.5 h-3.5 text-slate-400" />
                             </div>
-                            <div className="col-span-2 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-3 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <BarChart3 className="w-3.5 h-3.5 text-slate-400" />
                             </div>
-                            <div className="col-span-2 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-3 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <Table className="w-3.5 h-3.5 text-slate-400" />
                             </div>
-                            <div className="col-span-2 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-3 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <LineChart className="w-3.5 h-3.5 text-slate-400" />
                             </div>
                           </>
                         )}
                         {tpl.id === 'template_product' && (
                           <>
-                            <div className="col-span-2 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
-                            <div className="col-span-2 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
-                            <div className="col-span-2 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-3 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
+                            <div className="col-span-3 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
+                            <div className="col-span-3 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <BarChart3 className="w-3.5 h-3.5 text-slate-400" />
                             </div>
-                            <div className="col-span-2 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-3 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <Table className="w-3.5 h-3.5 text-slate-400" />
                             </div>
-                            <div className="col-span-2 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-3 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <PieChart className="w-3.5 h-3.5 text-slate-400" />
                             </div>
-                            <div className="col-span-2 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-3 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <BarChart3 className="w-3.5 h-3.5 text-slate-400" />
                             </div>
                           </>
                         )}
                         {tpl.id === 'template_kpi_tracker' && (
                           <>
-                            <div className="col-span-1 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
-                            <div className="col-span-1 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
-                            <div className="col-span-1 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
-                            <div className="col-span-1 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
-                            <div className="col-span-4 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-3 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
+                            <div className="col-span-3 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
+                            <div className="col-span-3 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
+                            <div className="col-span-3 bg-brand/10 dark:bg-brand/20 border border-brand/20 rounded-lg flex items-center justify-center"><span className="text-[9px] text-brand font-bold">KPI</span></div>
+                            <div className="col-span-6 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <LineChart className="w-3.5 h-3.5 text-slate-400" />
                             </div>
-                            <div className="col-span-2 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-3 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <PieChart className="w-3.5 h-3.5 text-slate-400" />
                             </div>
-                            <div className="col-span-2 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
+                            <div className="col-span-3 bg-slate-200 dark:bg-slate-850 rounded-lg flex items-center justify-center border border-slate-300/40 dark:border-slate-750/30">
                               <LineChart className="w-3.5 h-3.5 text-slate-400" />
                             </div>
                           </>

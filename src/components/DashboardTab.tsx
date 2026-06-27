@@ -561,21 +561,17 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
             <p className="text-sm font-semibold text-slate-500">此佈局無任何卡片，請先到第二或第三頁籤設定卡片。</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-6 gap-3">
             {cards.map((card) => {
-              const widthClass = card.w === 1
-                ? 'col-span-1'
-                : card.w === 2
-                  ? 'col-span-1 md:col-span-2'
-                  : card.w === 3
-                    ? 'col-span-1 md:col-span-3'
-                    : 'col-span-1 md:col-span-4';
+              const widthClass = `col-span-1 md:col-span-${card.w}`;
 
-              const heightClass = card.h === 'sm'
-                ? 'min-h-[140px] justify-between'
-                : card.h === 'md'
-                  ? 'min-h-[290px]'
-                  : 'min-h-[420px]';
+              const heightClass = card.h === 'auto'
+                ? 'h-fit min-h-[140px]'
+                : card.h === 'sm'
+                  ? 'min-h-[140px] justify-between'
+                  : card.h === 'md'
+                    ? 'min-h-[290px]'
+                    : 'min-h-[420px]';
 
               if (card.type === 'indicator') {
                 const config = card.config as any;
@@ -612,7 +608,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
               if (card.type === 'chart') {
                 const config = card.config as any;
                 const { chartData, chartOptions } = buildChartProps(card);
-                const chartHeightClass = card.h === 'lg' ? 'h-96' : 'h-60';
+                const chartHeightClass = card.h === 'lg' ? 'h-96' : card.h === 'sm' ? 'h-28' : 'h-60';
 
                 return (
                   <div
