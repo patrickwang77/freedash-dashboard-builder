@@ -192,6 +192,170 @@ export async function exportDashboardHTML(params: {
       }
     });
 
+    // Helper to calculate grouped pivot data, search, sort, and subtotal for Table Cards
+    function processTableData(config, filteredRecords, paging) {
+      const isGrouped = config.groupBy && config.groupBy !== 'raw_data';
+      const groupField = config.groupBy;
+      const aggFields = config.aggFields || [];
+      
+      let tableCols = [];
+      if (!isGrouped) {
+        tableCols = config.fields && config.fields.length > 0 ? config.fields : columns.map(c => c.name);
+      } else {
+        const otherChecked = (config.fields || []).filter(f => f !== groupField && !aggFields.includes(f));
+        tableCols = [groupField, ...aggFields, ...otherChecked];
+      }
+
+      // 1. Search Filter
+      let tableData = filteredRecords;
+      if (paging.searchTerm.trim() !== '') {
+        const query = paging.searchTerm.toLowerCase();
+        tableData = tableData.filter(row => {
+          return columns.some(col => {
+            const val = String(row[col.name] !== undefined && row[col.name] !== null ? row[col.name] : '');
+            return val.toLowerCase().includes(query);
+          });
+        });
+      }
+
+      // 2. Grouping
+      if (isGrouped) {
+        const groupColDef = columns.find(c => c.name === groupField);
+        const groupColType = groupColDef ? groupColDef.type : 'text';
+        
+        let numericBands = [];
+        if (groupColType === 'number' && config.groupInterval === 'range') {
+          const nums = tableData.map(r => Number(r[groupField])).filter(n => !isNaN(n));
+          if (nums.length > 0) {
+            const minVal = Math.min(...nums);
+            const maxVal = Math.max(...nums);
+            const step = (maxVal - minVal) / 5;
+            for (let idx = 0; idx < 5; idx++) {
+              const start = minVal + idx * step;
+              const end = idx === 4 ? maxVal : minVal + (idx + 1) * step;
+              numericBands.push({
+                min: start,
+                max: end,
+                label: Math.round(start).toLocaleString() + ' - ' + Math.round(end).toLocaleString()
+              });
+            }
+          }
+        }
+
+        const getGroupKey = (val) => {
+          if (val === undefined || val === null || val === '') return '(空白)';
+          
+          if (groupColType === 'date' || val instanceof Date || (typeof val === 'string' && !isNaN(Date.parse(val)))) {
+            const d = new Date(val);
+            if (!isNaN(d.getTime())) {
+              if (config.groupInterval === 'year') {
+                return d.getFullYear() + '年';
+              }
+              if (config.groupInterval === 'month') {
+                const m = String(d.getMonth() + 1).padStart(2, '0');
+                return d.getFullYear() + '年' + m + '月';
+              }
+              if (config.groupInterval === 'week') {
+                const day = d.getDay();
+                const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                const monday = new Date(d.setDate(diff));
+                const mm = String(monday.getMonth() + 1).padStart(2, '0');
+                const dd = String(monday.getDate()).padStart(2, '0');
+                return monday.getFullYear() + '/' + mm + '/' + dd + ' 週';
+              }
+            }
+          }
+          
+          if (groupColType === 'number') {
+            if (config.groupInterval === 'range' && numericBands.length > 0) {
+              const num = Number(val);
+              const band = numericBands.find(b => num >= b.min && num <= b.max);
+              if (band) return band.label;
+            }
+          }
+          
+          return String(val);
+        };
+
+        const groups = {};
+        tableData.forEach(row => {
+          const rawVal = row[groupField];
+          const key = getGroupKey(rawVal);
+          if (!groups[key]) groups[key] = [];
+          groups[key].push(row);
+        });
+
+        tableData = Object.keys(groups).map(key => {
+          const groupRows = groups[key];
+          const rowObj = {
+            [groupField]: key
+          };
+          
+          tableCols.forEach(col => {
+            if (col === groupField) return;
+            const cDef = columns.find(c => c.name === col);
+            const isNumeric = cDef ? cDef.type === 'number' : false;
+            
+            if (aggFields.includes(col) || isNumeric) {
+              rowObj[col] = groupRows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+            } else {
+              const uniqueVals = Array.from(new Set(groupRows.map(r => String(r[col] !== undefined && r[col] !== null ? r[col] : '')).filter(Boolean)));
+              if (uniqueVals.length === 0) {
+                rowObj[col] = '';
+              } else if (uniqueVals.length <= 3) {
+                rowObj[col] = uniqueVals.join(', ');
+              } else {
+                rowObj[col] = uniqueVals.slice(0, 3).join(', ') + ' 等 ' + uniqueVals.length + ' 項';
+              }
+            }
+          });
+          
+          return rowObj;
+        });
+      }
+
+      // 3. Sorting
+      if (paging.sortBy) {
+        const sortByField = paging.sortBy;
+        const desc = paging.sortDesc;
+        tableData = [...tableData].sort((a, b) => {
+          const valA = a[sortByField];
+          const valB = b[sortByField];
+          if (valA === valB) return 0;
+          if (valA === undefined || valA === null) return 1;
+          if (valB === undefined || valB === null) return -1;
+          if (typeof valA === 'number' && typeof valB === 'number') {
+            return desc ? valB - valA : valA - valB;
+          }
+          const strA = String(valA).toLowerCase();
+          const strB = String(valB).toLowerCase();
+          return desc ? strB.localeCompare(strA) : strA.localeCompare(strB);
+        });
+      }
+
+      // 4. Subtotal Row
+      let subtotalRow = null;
+      if (isGrouped && tableData.length > 0) {
+        subtotalRow = { [groupField]: '小計 (Total)' };
+        tableCols.forEach(col => {
+          if (col === groupField) return;
+          const cDef = columns.find(c => c.name === col);
+          const isNumeric = cDef ? cDef.type === 'number' : false;
+          if (aggFields.includes(col) || isNumeric) {
+            subtotalRow[col] = tableData.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+          } else {
+            subtotalRow[col] = '';
+          }
+        });
+      }
+
+      return {
+        tableCols,
+        rows: tableData,
+        subtotalRow
+      };
+    }
+
     // Chart.js instances lookup: cardId -> Chart Object
     const chartInstances = {};
 
@@ -724,45 +888,17 @@ export async function exportDashboardHTML(params: {
     function renderTableCard(cardId, cardWrapper, filteredRecords, config) {
       const paging = tablePagingState[cardId];
       
-      // Perform search filtering
-      let tableData = filteredRecords;
-      if (paging.searchTerm.trim() !== '') {
-        const query = paging.searchTerm.toLowerCase();
-        tableData = tableData.filter(row => {
-          return config.fields.some(f => {
-            const val = String(row[f] !== undefined ? row[f] : '');
-            return val.toLowerCase().includes(query);
-          });
-        });
-      }
+      // Process table grouping, search, sorting and subtotal using the helper
+      const { tableCols, rows: processedRows, subtotalRow } = processTableData(config, filteredRecords, paging);
 
-      // Apply sorting
-      if (paging.sortBy) {
-        const sortByField = paging.sortBy;
-        const desc = paging.sortDesc;
-        tableData = [...tableData].sort((a, b) => {
-          const valA = a[sortByField];
-          const valB = b[sortByField];
-          if (valA === valB) return 0;
-          if (valA === undefined || valA === null) return 1;
-          if (valB === undefined || valB === null) return -1;
-          if (typeof valA === 'number' && typeof valB === 'number') {
-            return desc ? valB - valA : valA - valB;
-          }
-          const strA = String(valA).toLowerCase();
-          const strB = String(valB).toLowerCase();
-          return desc ? strB.localeCompare(strA) : strA.localeCompare(strB);
-        });
-      }
-
-      const totalItems = tableData.length;
+      const totalItems = processedRows.length;
       const totalPages = Math.max(1, Math.ceil(totalItems / config.pageSize));
       if (paging.currentPage > totalPages) {
         paging.currentPage = totalPages;
       }
 
       const startIdx = (paging.currentPage - 1) * config.pageSize;
-      const paginatedData = tableData.slice(startIdx, startIdx + config.pageSize);
+      const paginatedData = processedRows.slice(startIdx, startIdx + config.pageSize);
 
       // Search & Info Bar
       const toolbar = document.createElement('div');
@@ -776,13 +912,12 @@ export async function exportDashboardHTML(params: {
       searchInput.addEventListener('input', (e) => {
         paging.searchTerm = e.target.value;
         paging.currentPage = 1;
-        // Just redraw the card elements
         updateTableSubComponents(cardId, cardWrapper, filteredRecords, config);
       });
 
       const infoText = document.createElement('span');
       infoText.className = 'text-xs text-slate-400 dark:text-slate-500 font-medium';
-      infoText.innerText = '顯示 ' + (startIdx + 1) + ' - ' + Math.min(startIdx + config.pageSize, totalItems) + ' 筆，共 ' + totalItems + ' 筆資料';
+      infoText.innerText = '顯示 ' + (totalItems === 0 ? 0 : startIdx + 1) + ' - ' + Math.min(startIdx + config.pageSize, totalItems) + ' 筆，共 ' + totalItems + ' 筆資料';
 
       toolbar.appendChild(searchInput);
       toolbar.appendChild(infoText);
@@ -801,7 +936,7 @@ export async function exportDashboardHTML(params: {
       cardWrapper.appendChild(paginator);
 
       // Draw active content
-      drawTableContents(cardId, paginatedData, config.fields, tableWrapper, filteredRecords, config, cardWrapper);
+      drawTableContents(cardId, paginatedData, tableCols, tableWrapper, filteredRecords, config, cardWrapper, subtotalRow);
       drawPaginationControls(cardId, paging.currentPage, totalPages, filteredRecords, config, paginator);
     }
 
@@ -809,43 +944,15 @@ export async function exportDashboardHTML(params: {
     function updateTableSubComponents(cardId, cardWrapper, filteredRecords, config) {
       const paging = tablePagingState[cardId];
       
-      let tableData = filteredRecords;
-      if (paging.searchTerm.trim() !== '') {
-        const query = paging.searchTerm.toLowerCase();
-        tableData = tableData.filter(row => {
-          return config.fields.some(f => {
-            const val = String(row[f] !== undefined ? row[f] : '');
-            return val.toLowerCase().includes(query);
-          });
-        });
-      }
+      const { tableCols, rows: processedRows, subtotalRow } = processTableData(config, filteredRecords, paging);
 
-      // Apply sorting
-      if (paging.sortBy) {
-        const sortByField = paging.sortBy;
-        const desc = paging.sortDesc;
-        tableData = [...tableData].sort((a, b) => {
-          const valA = a[sortByField];
-          const valB = b[sortByField];
-          if (valA === valB) return 0;
-          if (valA === undefined || valA === null) return 1;
-          if (valB === undefined || valB === null) return -1;
-          if (typeof valA === 'number' && typeof valB === 'number') {
-            return desc ? valB - valA : valA - valB;
-          }
-          const strA = String(valA).toLowerCase();
-          const strB = String(valB).toLowerCase();
-          return desc ? strB.localeCompare(strA) : strA.localeCompare(strB);
-        });
-      }
-
-      const totalItems = tableData.length;
+      const totalItems = processedRows.length;
       const totalPages = Math.max(1, Math.ceil(totalItems / config.pageSize));
       if (paging.currentPage > totalPages) {
         paging.currentPage = totalPages;
       }
       const startIdx = (paging.currentPage - 1) * config.pageSize;
-      const paginatedData = tableData.slice(startIdx, startIdx + config.pageSize);
+      const paginatedData = processedRows.slice(startIdx, startIdx + config.pageSize);
 
       // Update Toolbar summary
       const summarySpan = cardWrapper.querySelector('span.text-xs');
@@ -855,11 +962,11 @@ export async function exportDashboardHTML(params: {
 
       const tableWrap = cardWrapper.querySelector("#table-wrap-" + cardId);
       const pagerWrap = cardWrapper.querySelector("#pager-wrap-" + cardId);
-      drawTableContents(cardId, paginatedData, config.fields, tableWrap, filteredRecords, config, cardWrapper);
+      drawTableContents(cardId, paginatedData, tableCols, tableWrap, filteredRecords, config, cardWrapper, subtotalRow);
       drawPaginationControls(cardId, paging.currentPage, totalPages, filteredRecords, config, pagerWrap);
     }
 
-    function drawTableContents(cardId, rows, fields, targetWrapper, filteredRecords, config, cardWrapper) {
+    function drawTableContents(cardId, rows, fields, targetWrapper, filteredRecords, config, cardWrapper, subtotalRow) {
       const wrapper = targetWrapper || document.getElementById("table-wrap-" + cardId);
       if (!wrapper) return;
       wrapper.innerHTML = '';
@@ -878,7 +985,7 @@ export async function exportDashboardHTML(params: {
 
       fields.forEach(f => {
         const th = document.createElement('th');
-        th.className = 'px-4 py-3 font-semibold text-slate-600 dark:text-slate-300 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/60 select-none';
+        th.className = 'px-4 py-3 font-semibold text-slate-600 dark:text-slate-355 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/60 select-none';
         
         const paging = tablePagingState[cardId];
         const isSorted = paging.sortBy === f;
@@ -921,7 +1028,7 @@ export async function exportDashboardHTML(params: {
 
       rows.forEach(row => {
         const tr = document.createElement('tr');
-        tr.className = 'hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all';
+        tr.className = 'hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all border-b border-slate-100 dark:border-slate-800';
         fields.forEach(f => {
           const td = document.createElement('td');
           td.className = 'px-4 py-3 text-slate-650 dark:text-slate-355 max-w-[200px] truncate';
@@ -941,6 +1048,25 @@ export async function exportDashboardHTML(params: {
         });
         tbody.appendChild(tr);
       });
+
+      // Append subtotal row in offline page if it exists
+      if (subtotalRow) {
+        const tr = document.createElement('tr');
+        tr.className = 'bg-slate-50/70 dark:bg-slate-900/40 font-extrabold border-t-2 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200';
+        fields.forEach(f => {
+          const td = document.createElement('td');
+          td.className = 'px-4 py-2.5 font-bold';
+          const rawVal = subtotalRow[f];
+          if (typeof rawVal === 'number') {
+            td.innerText = rawVal.toLocaleString();
+            td.classList.add('font-mono');
+          } else {
+            td.innerText = rawVal !== undefined && rawVal !== null ? String(rawVal) : '';
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      }
 
       table.appendChild(tbody);
       wrapper.appendChild(table);

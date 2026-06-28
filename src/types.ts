@@ -44,7 +44,10 @@ export interface ChartConfig {
 
 export interface DataConfig {
   pageSize: number;
-  fields: string[]; // List of column names to display
+  fields: string[]; // List of column names to display (reorderable)
+  groupBy?: string; // Column to group by (undefined or 'raw_data' means raw data)
+  aggFields?: string[]; // Columns to aggregate (sum) when grouped
+  groupInterval?: 'none' | 'week' | 'month' | 'year' | 'range'; // Interval for grouping (date/number)
 }
 
 export interface DashboardCard {

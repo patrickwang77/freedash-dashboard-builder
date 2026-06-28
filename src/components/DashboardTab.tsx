@@ -669,15 +669,125 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                 const config = card.config as any;
                 const state = tableStates[card.id] || { page: 1, search: '', sortBy: undefined, sortDesc: false };
 
+                // Determine table columns
+                const isGrouped = config.groupBy && config.groupBy !== 'raw_data';
+                const groupField = config.groupBy;
+                const aggFields = config.aggFields || [];
+                
+                let tableCols: string[] = [];
+                if (!isGrouped) {
+                  tableCols = config.fields && config.fields.length > 0 ? config.fields : columns.map(c => c.name);
+                } else {
+                  const otherChecked = (config.fields || []).filter((f: string) => f !== groupField && !aggFields.includes(f));
+                  tableCols = [groupField, ...aggFields, ...otherChecked];
+                }
+
                 // Apply search in React
-                let tData = filteredData;
+                let sourceData = filteredData;
                 if (state.search.trim() !== '') {
                   const query = state.search.toLowerCase();
-                  tData = tData.filter((row) =>
-                    config.fields.some((f: string) =>
-                      String(row[f] ?? '').toLowerCase().includes(query)
+                  sourceData = sourceData.filter((row) =>
+                    columns.some((col) =>
+                      String(row[col.name] ?? '').toLowerCase().includes(query)
                     )
                   );
+                }
+
+                // Apply grouping if not raw data
+                let tData = sourceData;
+                if (isGrouped) {
+                  const groupColDef = columns.find(c => c.name === groupField);
+                  const groupColType = groupColDef?.type || 'text';
+                  
+                  let numericBands: { min: number; max: number; label: string }[] = [];
+                  if (groupColType === 'number' && config.groupInterval === 'range') {
+                    const nums = sourceData.map(r => Number(r[groupField])).filter(n => !isNaN(n));
+                    if (nums.length > 0) {
+                      const minVal = Math.min(...nums);
+                      const maxVal = Math.max(...nums);
+                      const step = (maxVal - minVal) / 5;
+                      numericBands = Array.from({ length: 5 }, (_, idx) => {
+                        const start = minVal + idx * step;
+                        const end = idx === 4 ? maxVal : minVal + (idx + 1) * step;
+                        return {
+                          min: start,
+                          max: end,
+                          label: `${Math.round(start).toLocaleString()} - ${Math.round(end).toLocaleString()}`
+                        };
+                      });
+                    }
+                  }
+
+                  const getGroupKey = (val: any) => {
+                    if (val === undefined || val === null || val === '') return '(空白)';
+                    
+                    if (groupColType === 'date' || val instanceof Date || (typeof val === 'string' && !isNaN(Date.parse(val)))) {
+                      const d = new Date(val);
+                      if (!isNaN(d.getTime())) {
+                        if (config.groupInterval === 'year') {
+                          return `${d.getFullYear()}年`;
+                        }
+                        if (config.groupInterval === 'month') {
+                          const m = String(d.getMonth() + 1).padStart(2, '0');
+                          return `${d.getFullYear()}年${m}月`;
+                        }
+                        if (config.groupInterval === 'week') {
+                          const day = d.getDay();
+                          const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                          const monday = new Date(d.setDate(diff));
+                          const mm = String(monday.getMonth() + 1).padStart(2, '0');
+                          const dd = String(monday.getDate()).padStart(2, '0');
+                          return `${monday.getFullYear()}/${mm}/${dd} 週`;
+                        }
+                      }
+                    }
+                    
+                    if (groupColType === 'number') {
+                      if (config.groupInterval === 'range' && numericBands.length > 0) {
+                        const num = Number(val);
+                        const band = numericBands.find(b => num >= b.min && num <= b.max);
+                        if (band) return band.label;
+                      }
+                    }
+                    
+                    return String(val);
+                  };
+
+                  const groups: Record<string, any[]> = {};
+                  sourceData.forEach(row => {
+                    const rawVal = row[groupField];
+                    const key = getGroupKey(rawVal);
+                    if (!groups[key]) groups[key] = [];
+                    groups[key].push(row);
+                  });
+
+                  tData = Object.keys(groups).map(key => {
+                    const groupRows = groups[key];
+                    const rowObj: Record<string, any> = {
+                      [groupField]: key
+                    };
+                    
+                    tableCols.forEach(col => {
+                      if (col === groupField) return;
+                      const cDef = columns.find(c => c.name === col);
+                      const isNumeric = cDef?.type === 'number';
+                      
+                      if (aggFields.includes(col) || isNumeric) {
+                        rowObj[col] = groupRows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+                      } else {
+                        const uniqueVals = Array.from(new Set(groupRows.map(r => String(r[col] ?? '')).filter(Boolean)));
+                        if (uniqueVals.length === 0) {
+                          rowObj[col] = '';
+                        } else if (uniqueVals.length <= 3) {
+                          rowObj[col] = uniqueVals.join(', ');
+                        } else {
+                          rowObj[col] = `${uniqueVals.slice(0, 3).join(', ')} 等 ${uniqueVals.length} 項`;
+                        }
+                      }
+                    });
+                    
+                    return rowObj;
+                  });
                 }
 
                 // Apply sorting in React
@@ -699,6 +809,23 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                     const strA = String(valA).toLowerCase();
                     const strB = String(valB).toLowerCase();
                     return desc ? strB.localeCompare(strA) : strA.localeCompare(strB);
+                  });
+                }
+
+                // Compute Subtotal Row values
+                const subtotalObj: Record<string, any> = {};
+                if (isGrouped && tData.length > 0) {
+                  subtotalObj[groupField] = '小計 (Total)';
+                  tableCols.forEach(col => {
+                    if (col === groupField) return;
+                    const cDef = columns.find(c => c.name === col);
+                    const isNumeric = cDef?.type === 'number';
+                    
+                    if (aggFields.includes(col) || isNumeric) {
+                      subtotalObj[col] = tData.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+                    } else {
+                      subtotalObj[col] = '';
+                    }
                   });
                 }
 
@@ -774,7 +901,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                         <table className="w-full text-xs text-left border-collapse">
                           <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 font-bold uppercase">
                             <tr>
-                              {config.fields.map((f: string) => {
+                              {tableCols.map((f: string) => {
                                 const isSorted = state.sortBy === f;
                                 const isDesc = !!state.sortDesc;
                                 return (
@@ -796,8 +923,8 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
                             {pageData.map((row, rIdx) => (
-                              <tr key={rIdx} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/30 transition-all">
-                                {config.fields.map((f: string) => {
+                              <tr key={rIdx} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/30 transition-all border-b border-slate-100 dark:border-slate-800">
+                                {tableCols.map((f: string) => {
                                   const cell = row[f];
                                   return (
                                     <td key={f} className="px-4 py-2 text-slate-650 dark:text-slate-355 max-w-[200px] truncate">
@@ -817,6 +944,22 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                                 })}
                               </tr>
                             ))}
+                            {isGrouped && total > 0 && (
+                              <tr className="bg-slate-50/70 dark:bg-slate-900/40 font-extrabold border-t-2 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
+                                {tableCols.map((f: string) => {
+                                  const cell = subtotalObj[f];
+                                  return (
+                                    <td key={f} className="px-4 py-2.5 font-bold">
+                                      {typeof cell === 'number' ? (
+                                        <span className="font-mono">{cell.toLocaleString()}</span>
+                                      ) : (
+                                        String(cell ?? '')
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            )}
                           </tbody>
                         </table>
                       )}
