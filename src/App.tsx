@@ -299,6 +299,7 @@ function App() {
               calculatedColumns={calculatedColumns}
               onAddCalculatedColumn={handleAddCalculatedColumn}
               onRemoveCalculatedColumn={handleRemoveCalculatedColumn}
+              data={data}
               onSaveAsTemplate={(name) => {
                 const newT = {
                   id: `custom_template_${Date.now()}`,

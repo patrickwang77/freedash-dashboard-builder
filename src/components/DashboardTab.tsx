@@ -97,7 +97,6 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   // Table paging and search: cardId -> { page, search, sortBy, sortDesc }
   const [tableStates, setTableStates] = useState<Record<string, { page: number; search: string; sortBy?: string; sortDesc?: boolean }>>({});
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
-  const [localSlicerStates, setLocalSlicerStates] = useState<Record<string, string>>({});
 
   // Reset all slicer selections
   const handleResetFilters = () => {
@@ -589,10 +588,10 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
               if (card.type === 'indicator') {
                 const config = card.config as any;
                 
-                // Card-level local filter
+                // Card-level local filter from config
                 let cardData = filteredData;
                 const localField = config.localSlicerField;
-                const localVal = localSlicerStates[card.id] || '';
+                const localVal = config.localSlicerValue || '';
                 if (localField && localVal) {
                   cardData = cardData.filter(row => String(row[localField] ?? '') === localVal);
                 }
@@ -605,30 +604,19 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                     ? value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
                     : Math.round(value).toLocaleString();
 
-                const localSlicerOptions = localField
-                  ? Array.from(new Set(computedData.map(r => String(r[localField] ?? '')).filter(Boolean))).sort()
-                  : [];
-
                 return (
                   <div
                     key={card.id}
                     className={`${widthClass} ${heightClass} bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col`}
                   >
                     <div className="flex justify-between items-start gap-4 mb-2">
-                      <h3 className="font-bold text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider">
+                      <h3 className="font-bold text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider truncate">
                         {card.title}
                       </h3>
-                      {localField && (
-                        <select
-                          value={localVal}
-                          onChange={(e) => setLocalSlicerStates(prev => ({ ...prev, [card.id]: e.target.value }))}
-                          className="text-[10px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5 max-w-[120px] focus:ring-1 focus:ring-brand outline-none truncate cursor-pointer"
-                        >
-                          <option value="">全部 ({localField})</option>
-                          {localSlicerOptions.map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
+                      {localField && localVal && (
+                        <span className="text-[10px] bg-brand/10 dark:bg-brand/20 text-brand dark:text-brand-light px-2.5 py-0.5 rounded-full font-bold select-none truncate max-w-[120px]">
+                          {localVal}
+                        </span>
                       )}
                     </div>
                     <div className="flex items-baseline gap-1 py-3">
@@ -649,10 +637,10 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
               if (card.type === 'chart') {
                 const config = card.config as any;
 
-                // Card-level local filter
+                // Card-level local filter from config
                 let cardData = filteredData;
                 const localField = config.localSlicerField;
-                const localVal = localSlicerStates[card.id] || '';
+                const localVal = config.localSlicerValue || '';
                 if (localField && localVal) {
                   cardData = cardData.filter(row => String(row[localField] ?? '') === localVal);
                 }
@@ -660,10 +648,6 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                 const { chartData, chartOptions } = buildChartProps(card, cardData);
                 const chartHeightClass = card.h === 'lg' ? 'h-96' : card.h === 'sm' ? 'h-28' : 'h-60';
                 const chartKey = `${theme.mode}_${theme.name}_${card.id}_${localVal}`;
-
-                const localSlicerOptions = localField
-                  ? Array.from(new Set(computedData.map(r => String(r[localField] ?? '')).filter(Boolean))).sort()
-                  : [];
 
                 return (
                   <div
@@ -674,17 +658,10 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                       <h3 className="font-bold text-slate-750 dark:text-slate-205 text-sm truncate">
                         {card.title}
                       </h3>
-                      {localField && (
-                        <select
-                          value={localVal}
-                          onChange={(e) => setLocalSlicerStates(prev => ({ ...prev, [card.id]: e.target.value }))}
-                          className="text-[10px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5 max-w-[120px] focus:ring-1 focus:ring-brand outline-none truncate cursor-pointer"
-                        >
-                          <option value="">全部 ({localField})</option>
-                          {localSlicerOptions.map(opt => (
-                            <option key={opt} value={opt}>{opt}</option>
-                          ))}
-                        </select>
+                      {localField && localVal && (
+                        <span className="text-[10px] bg-brand/10 dark:bg-brand/20 text-brand dark:text-brand-light px-2.5 py-0.5 rounded-full font-bold select-none truncate max-w-[120px]">
+                          {localVal}
+                        </span>
                       )}
                     </div>
                     <div className={`${chartHeightClass} relative w-full flex items-center justify-center`}>

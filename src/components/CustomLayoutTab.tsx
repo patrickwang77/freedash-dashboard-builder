@@ -10,6 +10,7 @@ interface CustomLayoutTabProps {
   onAddCalculatedColumn: (cc: CalculatedColumn) => void;
   onRemoveCalculatedColumn: (name: string) => void;
   onSaveAsTemplate?: (name: string) => void;
+  data: any[];
 }
 
 export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
@@ -19,7 +20,8 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
   calculatedColumns,
   onAddCalculatedColumn,
   onRemoveCalculatedColumn,
-  onSaveAsTemplate
+  onSaveAsTemplate,
+  data
 }) => {
   // Numeric and Calculated columns for formulas
   const numericFields = columns
@@ -700,7 +702,10 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                     <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-1.5">獨立篩選器 (Local Slicer)</label>
                     <select
                       value={(editingCard.config as any).localSlicerField || ''}
-                      onChange={(e) => updateCardConfig(editingCard.id, { localSlicerField: e.target.value || undefined })}
+                      onChange={(e) => updateCardConfig(editingCard.id, { 
+                        localSlicerField: e.target.value || undefined,
+                        localSlicerValue: undefined
+                      })}
                       className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand focus:outline-none"
                     >
                       <option value="">🚫 無 (None)</option>
@@ -709,6 +714,29 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                       ))}
                     </select>
                   </div>
+
+                  {(editingCard.config as any).localSlicerField && (() => {
+                    const lField = (editingCard.config as any).localSlicerField;
+                    const uniqueVals = Array.from(new Set(data.map((r: any) => String(r[lField] !== undefined && r[lField] !== null ? r[lField] : ''))))
+                      .filter(v => v !== '')
+                      .sort();
+
+                    return (
+                      <div>
+                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-1.5">篩選器值 (Slicer Value)</label>
+                        <select
+                          value={(editingCard.config as any).localSlicerValue || ''}
+                          onChange={(e) => updateCardConfig(editingCard.id, { localSlicerValue: e.target.value || undefined })}
+                          className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand focus:outline-none font-medium text-slate-700 dark:text-slate-300"
+                        >
+                          <option value="">全部 (All)</option>
+                          {uniqueVals.map((val) => (
+                            <option key={val} value={val}>{val}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })()}
                 </>
               )}
 
@@ -943,7 +971,10 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                       <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-1.5">獨立篩選器 (Local Slicer)</label>
                       <select
                         value={conf.localSlicerField || ''}
-                        onChange={(e) => updateCardConfig(editingCard.id, { localSlicerField: e.target.value || undefined })}
+                        onChange={(e) => updateCardConfig(editingCard.id, { 
+                          localSlicerField: e.target.value || undefined,
+                          localSlicerValue: undefined
+                        })}
                         className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand focus:outline-none"
                       >
                         <option value="">🚫 無 (None)</option>
@@ -952,6 +983,29 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                         ))}
                       </select>
                     </div>
+
+                    {conf.localSlicerField && (() => {
+                      const lField = conf.localSlicerField;
+                      const uniqueVals = Array.from(new Set(data.map((r: any) => String(r[lField] !== undefined && r[lField] !== null ? r[lField] : ''))))
+                        .filter(v => v !== '')
+                        .sort();
+
+                      return (
+                        <div className="col-span-1 md:col-span-2">
+                          <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-1.5">篩選器值 (Slicer Value)</label>
+                          <select
+                            value={conf.localSlicerValue || ''}
+                            onChange={(e) => updateCardConfig(editingCard.id, { localSlicerValue: e.target.value || undefined })}
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand focus:outline-none font-medium text-slate-700 dark:text-slate-300"
+                          >
+                            <option value="">全部 (All)</option>
+                            {uniqueVals.map((val) => (
+                              <option key={val} value={val}>{val}</option>
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    })()}
                   </>
                 );
               })()}

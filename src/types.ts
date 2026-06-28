@@ -22,6 +22,7 @@ export interface IndicatorConfig {
   prefix: string;
   suffix: string;
   localSlicerField?: string; // Single local slicer field
+  localSlicerValue?: string; // Selected filter value for the local slicer
 }
 
 export interface ThresholdItem {
@@ -42,6 +43,7 @@ export interface ChartConfig {
   thresholds?: ThresholdItem[];
   ringType?: 'full' | 'half'; // Full or half circle progress ring
   localSlicerField?: string; // Single local slicer field
+  localSlicerValue?: string; // Selected filter value for the local slicer
 }
 
 export interface DataConfig {

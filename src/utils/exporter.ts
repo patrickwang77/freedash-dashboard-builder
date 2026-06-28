@@ -192,8 +192,6 @@ export async function exportDashboardHTML(params: {
       }
     });
 
-    // Local Slicer States: cardId -> selectedValue
-    const localSlicerStates = {};
 
     // Helper to calculate grouped pivot data, search, sort, and subtotal for Table Cards
     function processTableData(config, filteredRecords, paging) {
@@ -629,39 +627,17 @@ export async function exportDashboardHTML(params: {
         // --- Local Slicer Filter Applied to Card Data ---
         let cardData = filteredRecords;
         const localField = card.config.localSlicerField;
-        const localVal = localSlicerStates[card.id] || '';
+        const localVal = card.config.localSlicerValue || '';
         if (localField && localVal) {
           cardData = cardData.filter(row => String(row[localField] ?? '') === localVal);
         }
 
-        // If localField exists, draw select dropdown in the header!
-        if (localField) {
-          const uniqueVals = Array.from(new Set(rawData.map(r => String(r[localField] !== undefined && r[localField] !== null ? r[localField] : ''))))
-            .filter(v => v !== '')
-            .sort();
-
-          const selectEl = document.createElement('select');
-          selectEl.className = 'text-[10px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5 max-w-[120px] focus:ring-1 focus:ring-brand outline-none truncate cursor-pointer';
-          
-          const defaultOpt = document.createElement('option');
-          defaultOpt.value = '';
-          defaultOpt.innerText = '全部 (' + localField + ')';
-          selectEl.appendChild(defaultOpt);
-          
-          uniqueVals.forEach(optVal => {
-            const opt = document.createElement('option');
-            opt.value = optVal;
-            opt.innerText = optVal;
-            if (optVal === localVal) opt.selected = true;
-            selectEl.appendChild(opt);
-          });
-          
-          selectEl.addEventListener('change', () => {
-            localSlicerStates[card.id] = selectEl.value;
-            updateDashboard();
-          });
-          
-          header.appendChild(selectEl);
+        // If localField exists and has a configured value, draw a badge in the header!
+        if (localField && localVal) {
+          const badge = document.createElement('span');
+          badge.className = 'text-[10px] bg-brand/10 dark:bg-brand/20 text-brand dark:text-brand-light px-2.5 py-0.5 rounded-full font-bold select-none truncate max-w-[120px]';
+          badge.innerText = localVal;
+          header.appendChild(badge);
         }
 
         // Card Body based on type
