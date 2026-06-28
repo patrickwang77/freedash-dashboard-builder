@@ -1061,7 +1061,12 @@ export async function exportDashboardHTML(params: {
       }
 
       const tableWrap = cardWrapper.querySelector("#table-wrap-" + cardId);
-      const pagerWrap = cardWrapper.querySelector("#pager-wrap-" + card    function drawTableContents(cardId, rows, fields, targetWrapper, filteredRecords, config, cardWrapper, subtotalRow) {
+      const pagerWrap = cardWrapper.querySelector("#pager-wrap-" + cardId);
+      drawTableContents(cardId, paginatedData, tableCols, tableWrap, filteredRecords, config, cardWrapper, subtotalRow);
+      drawPaginationControls(cardId, paging.currentPage, totalPages, filteredRecords, config, pagerWrap);
+    }
+
+    function drawTableContents(cardId, rows, fields, targetWrapper, filteredRecords, config, cardWrapper, subtotalRow) {
       const wrapper = targetWrapper || document.getElementById("table-wrap-" + cardId);
       if (!wrapper) return;
       wrapper.innerHTML = '';
