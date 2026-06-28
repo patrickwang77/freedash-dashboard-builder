@@ -45,9 +45,11 @@ export interface ChartConfig {
 export interface DataConfig {
   pageSize: number;
   fields: string[]; // List of column names to display (reorderable)
-  groupBy?: string; // Column to group by (undefined or 'raw_data' means raw data)
+  groupBy?: string; // Column to group by (deprecated/fallback)
+  groupByFields?: string[]; // Multiple columns to group by hierarchically
   aggFields?: string[]; // Columns to aggregate (sum) when grouped (deprecated)
-  groupInterval?: 'none' | 'week' | 'month' | 'year' | 'range'; // Interval for grouping (date/number)
+  groupInterval?: 'none' | 'week' | 'month' | 'year' | 'range'; // Default interval (deprecated/fallback)
+  groupIntervals?: Record<string, 'none' | 'week' | 'month' | 'year' | 'range'>; // Interval mapping for each group-by field
   aggTypeMap?: Record<string, 'sum' | 'count' | 'avg' | 'none'>; // Map of fieldName -> aggregation type
 }
 

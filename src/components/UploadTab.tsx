@@ -2,7 +2,8 @@ import React, { useState, useRef } from 'react';
 import type { DataColumn, ColumnType } from '../types';
 import { parseSpreadsheet } from '../utils/parser';
 import { generateSampleData } from '../utils/sampleData';
-import { Upload, FileText, CheckCircle, Database, AlertCircle } from 'lucide-react';
+import { Upload, FileText, CheckCircle, Database, AlertCircle, ArrowRightLeft } from 'lucide-react';
+import { UnpivotModal } from './UnpivotModal';
 
 interface UploadTabProps {
   onDataLoaded: (columns: DataColumn[], data: any[], fileName: string) => void;
@@ -22,6 +23,7 @@ export const UploadTab: React.FC<UploadTabProps> = ({
   const [isDragging, setIsDragging] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isUnpivotOpen, setIsUnpivotOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
@@ -210,6 +212,14 @@ export const UploadTab: React.FC<UploadTabProps> = ({
                   來源檔案：<span className="font-semibold text-slate-700 dark:text-slate-300">{fileName}</span> • 共 <span className="font-semibold text-brand">{data.length}</span> 筆資料列，系統已智慧識別 <span className="font-semibold text-brand">{columns.length}</span> 個欄位屬性。
                 </p>
               </div>
+              <button
+                type="button"
+                onClick={() => setIsUnpivotOpen(true)}
+                className="bg-brand/10 hover:bg-brand/20 text-brand text-xs font-bold py-2 px-3.5 rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shadow-brand/5 border border-brand/20 shrink-0"
+              >
+                <ArrowRightLeft className="w-3.5 h-3.5" />
+                <span>逆樞紐資料清洗 (Unpivot)</span>
+              </button>
             </div>
 
             {/* Smart Column identification grid */}
@@ -285,6 +295,16 @@ export const UploadTab: React.FC<UploadTabProps> = ({
           </div>
         </div>
       )}
+      
+      <UnpivotModal
+        isOpen={isUnpivotOpen}
+        onClose={() => setIsUnpivotOpen(false)}
+        columns={columns}
+        data={data}
+        onApply={(newCols, newData) => {
+          onDataLoaded(newCols, newData, fileName + ' (已逆樞紐)');
+        }}
+      />
     </div>
   );
 };

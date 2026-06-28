@@ -96,6 +96,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
   // Table paging and search: cardId -> { page, search, sortBy, sortDesc }
   const [tableStates, setTableStates] = useState<Record<string, { page: number; search: string; sortBy?: string; sortDesc?: boolean }>>({});
+  const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
 
   // Reset all slicer selections
   const handleResetFilters = () => {
@@ -670,21 +671,22 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                 const config = card.config as any;
                 const state = tableStates[card.id] || { page: 1, search: '', sortBy: undefined, sortDesc: false };
 
-                // Determine table columns
-                const isGrouped = config.groupBy && config.groupBy !== 'raw_data';
-                const groupField = config.groupBy;
+                // Resolve Grouping Fields
+                const groupByFields = config.groupByFields || (config.groupBy && config.groupBy !== 'raw_data' ? [config.groupBy] : []);
+                const isGrouped = groupByFields.length > 0;
+                const groupIntervals = config.groupIntervals || (config.groupBy && config.groupBy !== 'raw_data' ? { [config.groupBy]: config.groupInterval || 'none' } : {});
                 const aggTypeMap = config.aggTypeMap || {};
                 
                 // Get checked fields in user's custom sort order
                 let checkedCols = config.fields && config.fields.length > 0 ? config.fields : columns.map((c: any) => c.name);
                 
-                // If grouped, ensure groupField is in tableCols and is forced as the first column
+                // If grouped, ensure all groupByFields are in tableCols and forced to be the first columns
                 let tableCols: string[] = [];
                 if (!isGrouped) {
                   tableCols = checkedCols;
                 } else {
-                  let filteredChecked = checkedCols.filter((f: string) => f !== groupField);
-                  tableCols = [groupField, ...filteredChecked];
+                  let filteredChecked = checkedCols.filter((f: string) => !groupByFields.includes(f));
+                  tableCols = [...groupByFields, ...filteredChecked];
                 }
 
                 // Apply search in React
@@ -698,137 +700,218 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                   );
                 }
 
+                // Define tree types
+                interface GroupNode {
+                  key: string;
+                  field: string;
+                  level: number;
+                  path: string;
+                  rows: any[];
+                  children: GroupNode[];
+                }
+
                 // Apply grouping if not raw data
-                let tData = sourceData;
+                let flatRows: any[] = [];
+                let treeData: GroupNode[] = [];
+                
                 if (isGrouped) {
-                  const groupColDef = columns.find((c: any) => c.name === groupField);
-                  const groupColType = groupColDef?.type || 'text';
-                  
-                  let numericBands: { min: number; max: number; label: string }[] = [];
-                  if (groupColType === 'number' && config.groupInterval === 'range') {
-                    const nums = sourceData.map((r: any) => Number(r[groupField])).filter((n: number) => !isNaN(n));
-                    if (nums.length > 0) {
-                      const minVal = Math.min(...nums);
-                      const maxVal = Math.max(...nums);
-                      const step = (maxVal - minVal) / 5;
-                      numericBands = Array.from({ length: 5 }, (_, idx) => {
-                        const start = minVal + idx * step;
-                        const end = idx === 4 ? maxVal : minVal + (idx + 1) * step;
-                        return {
-                          min: start,
-                          max: end,
-                          label: `${Math.round(start).toLocaleString()} - ${Math.round(end).toLocaleString()}`
-                        };
-                      });
-                    }
-                  }
-
-                  const getGroupKey = (val: any): string => {
-                    if (val === undefined || val === null || val === '') return '(空白)';
+                  // Compute numeric bands for intervals
+                  let numericBandsMap: Record<string, { min: number; max: number; label: string }[]> = {};
+                  groupByFields.forEach((gField: string) => {
+                    const gColDef = columns.find((c: any) => c.name === gField);
+                    const gColType = gColDef?.type || 'text';
+                    const gInterval = groupIntervals[gField] || 'none';
                     
-                    if (groupColType === 'date' || val instanceof Date || (typeof val === 'string' && !isNaN(Date.parse(val)))) {
-                      const d = new Date(val);
-                      if (!isNaN(d.getTime())) {
-                        if (config.groupInterval === 'year') {
-                          return `${d.getFullYear()}年`;
-                        }
-                        if (config.groupInterval === 'month') {
-                          const m = String(d.getMonth() + 1).padStart(2, '0');
-                          return `${d.getFullYear()}年${m}月`;
-                        }
-                        if (config.groupInterval === 'week') {
-                          const day = d.getDay();
-                          const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-                          const monday = new Date(d.setDate(diff));
-                          const mm = String(monday.getMonth() + 1).padStart(2, '0');
-                          const dd = String(monday.getDate()).padStart(2, '0');
-                          return `${monday.getFullYear()}/${mm}/${dd} 週`;
-                        }
+                    if (gColType === 'number' && gInterval === 'range') {
+                      const nums = sourceData.map((r: any) => Number(r[gField])).filter((n: number) => !isNaN(n));
+                      if (nums.length > 0) {
+                        const minVal = Math.min(...nums);
+                        const maxVal = Math.max(...nums);
+                        const step = (maxVal - minVal) / 5;
+                        numericBandsMap[gField] = Array.from({ length: 5 }, (_, idx) => {
+                          const start = minVal + idx * step;
+                          const end = idx === 4 ? maxVal : minVal + (idx + 1) * step;
+                          return {
+                            min: start,
+                            max: end,
+                            label: `${Math.round(start).toLocaleString()} - ${Math.round(end).toLocaleString()}`
+                          };
+                        });
                       }
                     }
-                    
-                    if (groupColType === 'number') {
-                      if (config.groupInterval === 'range' && numericBands.length > 0) {
-                        const num = Number(val);
-                        const band = numericBands.find(b => num >= b.min && num <= b.max);
-                        if (band) return band.label;
-                      }
-                    }
-                    
-                    return String(val);
-                  };
-
-                  const groups: Record<string, any[]> = {};
-                  sourceData.forEach((row: any) => {
-                    const rawVal = row[groupField];
-                    const key = getGroupKey(rawVal);
-                    if (!groups[key]) groups[key] = [];
-                    groups[key].push(row);
                   });
 
-                  tData = Object.keys(groups).map((key: string) => {
-                    const groupRows = groups[key];
-                    const rowObj: Record<string, any> = {
-                      [groupField]: key
-                    };
-                    
-                    tableCols.forEach((col: string) => {
-                      if (col === groupField) return;
-                      const cDef = columns.find((c: any) => c.name === col);
-                      const isNumeric = cDef?.type === 'number';
-                      const aggType = aggTypeMap[col] || (isNumeric ? 'sum' : 'none');
+                  const buildTreeGroups = (
+                    records: any[],
+                    level: number,
+                    parentPath: string
+                  ): GroupNode[] => {
+                    if (level >= groupByFields.length) return [];
+                    const fieldName = groupByFields[level];
+                    const cDef = columns.find((c: any) => c.name === fieldName);
+                    const colType = cDef?.type || 'text';
+                    const interval = groupIntervals[fieldName] || 'none';
+
+                    const getGroupKey = (val: any): string => {
+                      if (val === undefined || val === null || val === '') return '(空白)';
                       
-                      if (aggType === 'sum') {
-                        rowObj[col] = groupRows.reduce((acc: number, r: any) => acc + (Number(r[col]) || 0), 0);
-                      } else if (aggType === 'count') {
-                        rowObj[col] = groupRows.length;
-                      } else if (aggType === 'avg') {
-                        const nums = groupRows.map((r: any) => Number(r[col])).filter((n: number) => !isNaN(n));
-                        rowObj[col] = nums.length > 0 ? nums.reduce((acc: number, n: number) => acc + n, 0) / nums.length : 0;
-                      } else {
-                        const uniqueVals = Array.from(new Set(groupRows.map((r: any) => String(r[col] ?? '')).filter(Boolean)));
-                        if (uniqueVals.length === 0) {
-                          rowObj[col] = '';
-                        } else if (uniqueVals.length <= 3) {
-                          rowObj[col] = uniqueVals.join(', ');
-                        } else {
-                          rowObj[col] = `${uniqueVals.slice(0, 3).join(', ')} 等 ${uniqueVals.length} 項`;
+                      if (colType === 'date' || val instanceof Date || (typeof val === 'string' && !isNaN(Date.parse(val)))) {
+                        const d = new Date(val);
+                        if (!isNaN(d.getTime())) {
+                          if (interval === 'year') return `${d.getFullYear()}年`;
+                          if (interval === 'month') {
+                            const m = String(d.getMonth() + 1).padStart(2, '0');
+                            return `${d.getFullYear()}年${m}月`;
+                          }
+                          if (interval === 'week') {
+                            const day = d.getDay();
+                            const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                            const monday = new Date(d.setDate(diff));
+                            const mm = String(monday.getMonth() + 1).padStart(2, '0');
+                            const dd = String(monday.getDate()).padStart(2, '0');
+                            return `${monday.getFullYear()}/${mm}/${dd} 週`;
+                          }
                         }
+                      }
+                      
+                      if (colType === 'number') {
+                        const bands = numericBandsMap[fieldName];
+                        if (interval === 'range' && bands && bands.length > 0) {
+                          const num = Number(val);
+                          const band = bands.find(b => num >= b.min && num <= b.max);
+                          if (band) return band.label;
+                        }
+                      }
+                      
+                      return String(val);
+                    };
+
+                    const groups: Record<string, any[]> = {};
+                    records.forEach((row: any) => {
+                      const rawVal = row[fieldName];
+                      const key = getGroupKey(rawVal);
+                      if (!groups[key]) groups[key] = [];
+                      groups[key].push(row);
+                    });
+
+                    return Object.keys(groups).sort().map(key => {
+                      const groupRows = groups[key];
+                      const currentPath = parentPath ? `${parentPath} | ${key}` : key;
+                      return {
+                        key,
+                        field: fieldName,
+                        level,
+                        path: currentPath,
+                        rows: groupRows,
+                        children: buildTreeGroups(groupRows, level + 1, currentPath)
+                      };
+                    });
+                  };
+
+                  treeData = buildTreeGroups(sourceData, 0, '');
+
+                  const getAggregatedValue = (node: GroupNode, col: string): any => {
+                    if (groupByFields.includes(col)) {
+                      return col === node.field ? node.key : '';
+                    }
+                    const cDef = columns.find((c: any) => c.name === col);
+                    const isNumeric = cDef?.type === 'number';
+                    const aggType = aggTypeMap[col] || (isNumeric ? 'sum' : 'none');
+                    
+                    if (aggType === 'sum') {
+                      return node.rows.reduce((acc: number, r: any) => acc + (Number(r[col]) || 0), 0);
+                    } else if (aggType === 'count') {
+                      return node.rows.length;
+                    } else if (aggType === 'avg') {
+                      const nums = node.rows.map((r: any) => Number(r[col])).filter((n: number) => !isNaN(n));
+                      return nums.length > 0 ? nums.reduce((acc: number, n: number) => acc + n, 0) / nums.length : 0;
+                    } else {
+                      const uniqueVals = Array.from(new Set(node.rows.map((r: any) => String(r[col] ?? '')).filter(Boolean)));
+                      return uniqueVals.join(', ');
+                    }
+                  };
+
+                  const sortTreeNodes = (nodes: GroupNode[], sortByField: string, desc: boolean): GroupNode[] => {
+                    const sorted = [...nodes].sort((a, b) => {
+                      const valA = getAggregatedValue(a, sortByField);
+                      const valB = getAggregatedValue(b, sortByField);
+                      
+                      if (valA === valB) return 0;
+                      if (valA === undefined || valA === null) return 1;
+                      if (valB === undefined || valB === null) return -1;
+                      
+                      if (typeof valA === 'number' && typeof valB === 'number') {
+                        return desc ? valB - valA : valA - valB;
+                      }
+                      return desc ? String(valB).localeCompare(String(valA)) : String(valA).localeCompare(String(valB));
+                    });
+                    
+                    sorted.forEach(node => {
+                      if (node.children.length > 0) {
+                        node.children = sortTreeNodes(node.children, sortByField, desc);
                       }
                     });
                     
-                    return rowObj;
-                  });
-                }
+                    return sorted;
+                  };
 
-                // Apply sorting in React
-                if (state.sortBy) {
-                  const sortByField = state.sortBy;
-                  const desc = !!state.sortDesc;
-                  tData = [...tData].sort((a: any, b: any) => {
-                    const valA = a[sortByField];
-                    const valB = b[sortByField];
+                  if (state.sortBy) {
+                    treeData = sortTreeNodes(treeData, state.sortBy, !!state.sortDesc);
+                  }
 
-                    if (valA === valB) return 0;
-                    if (valA === undefined || valA === null) return 1;
-                    if (valB === undefined || valB === null) return -1;
+                  const flattenTree = (nodes: GroupNode[]): GroupNode[] => {
+                    const flat: GroupNode[] = [];
+                    const recurse = (node: GroupNode, isVisible: boolean) => {
+                      if (isVisible) {
+                        flat.push(node);
+                      }
+                      const pathKey = `${card.id}::${node.path}`;
+                      const isExpanded = expandedPaths[pathKey] !== false; // expanded by default
+                      
+                      node.children.forEach(child => {
+                        recurse(child, isVisible && isExpanded);
+                      });
+                    };
+                    nodes.forEach(node => recurse(node, true));
+                    return flat;
+                  };
 
-                    if (typeof valA === 'number' && typeof valB === 'number') {
-                      return desc ? valB - valA : valA - valB;
-                    }
+                  flatRows = flattenTree(treeData);
+                } else {
+                  // Raw data sorting
+                  flatRows = sourceData;
+                  if (state.sortBy) {
+                    const sortByField = state.sortBy;
+                    const desc = !!state.sortDesc;
+                    flatRows = [...flatRows].sort((a: any, b: any) => {
+                      const valA = a[sortByField];
+                      const valB = b[sortByField];
 
-                    const strA = String(valA).toLowerCase();
-                    const strB = String(valB).toLowerCase();
-                    return desc ? strB.localeCompare(strA) : strA.localeCompare(strB);
-                  });
+                      if (valA === valB) return 0;
+                      if (valA === undefined || valA === null) return 1;
+                      if (valB === undefined || valB === null) return -1;
+
+                      if (typeof valA === 'number' && typeof valB === 'number') {
+                        return desc ? valB - valA : valA - valB;
+                      }
+
+                      const strA = String(valA).toLowerCase();
+                      const strB = String(valB).toLowerCase();
+                      return desc ? strB.localeCompare(strA) : strA.localeCompare(strB);
+                    });
+                  }
                 }
 
                 // Compute Subtotal Row values directly from raw sourceData for mathematical accuracy
                 const subtotalObj: Record<string, any> = {};
-                if (isGrouped && tData.length > 0) {
-                  subtotalObj[groupField] = '小計 (Total)';
+                if (isGrouped && flatRows.length > 0) {
+                  subtotalObj[groupByFields[0]] = '小計 (Total)';
+                  groupByFields.slice(1).forEach((gf: string) => {
+                    subtotalObj[gf] = '';
+                  });
+                  
                   tableCols.forEach((col: string) => {
-                    if (col === groupField) return;
+                    if (groupByFields.includes(col)) return;
                     const cDef = columns.find((c: any) => c.name === col);
                     const isNumeric = cDef?.type === 'number';
                     const aggType = aggTypeMap[col] || (isNumeric ? 'sum' : 'none');
@@ -846,11 +929,11 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                   });
                 }
 
-                const total = tData.length;
+                const total = flatRows.length;
                 const pages = Math.max(1, Math.ceil(total / config.pageSize));
                 const activePage = Math.min(state.page, pages);
                 const startIdx = (activePage - 1) * config.pageSize;
-                const pageData = tData.slice(startIdx, startIdx + config.pageSize);
+                const pageData = flatRows.slice(startIdx, startIdx + config.pageSize);
 
                 const handleSearchChange = (val: string) => {
                   setTableStates((prev) => ({
@@ -888,7 +971,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                 return (
                   <div
                     key={card.id}
-                    className={`${widthClass} ${heightClass} bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col`}
+                    className={`${widthClass} ${heightClass} bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-105 dark:border-slate-700/60 flex flex-col`}
                   >
                     <h3 className="font-bold text-slate-750 dark:text-slate-205 text-sm mb-4">
                       {card.title}
@@ -916,7 +999,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                         </div>
                       ) : (
                         <table className="w-full text-xs text-left border-collapse">
-                          <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800 font-bold uppercase">
+                          <thead className="bg-slate-50 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 border-b border-slate-105 dark:border-slate-800 font-bold uppercase">
                             <tr>
                               {tableCols.map((f: string) => {
                                 const isSorted = state.sortBy === f;
@@ -939,28 +1022,116 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {pageData.map((row: any, rIdx: number) => (
-                              <tr key={rIdx} className="hover:bg-slate-50/50 dark:hover:bg-slate-855/30 transition-all border-b border-slate-105 dark:border-slate-800">
-                                {tableCols.map((f: string) => {
-                                  const cell = row[f];
-                                  return (
-                                    <td key={f} className="px-4 py-2 text-slate-655 dark:text-slate-300 max-w-[200px] truncate">
-                                      {typeof cell === 'number' ? (
-                                        <span className="font-mono">{cell.toLocaleString()}</span>
-                                      ) : typeof cell === 'boolean' ? (
-                                        cell ? (
-                                          <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-100/40">是</span>
-                                        ) : (
-                                          <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-400">否</span>
-                                        )
-                                      ) : (
-                                        String(cell ?? '')
-                                      )}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            ))}
+                            {pageData.map((row: any, rIdx: number) => {
+                              if (isGrouped) {
+                                const node = row as GroupNode;
+                                return (
+                                  <tr
+                                    key={node.path}
+                                    className="hover:bg-slate-50/50 dark:hover:bg-slate-855/30 transition-all border-b border-slate-105 dark:border-slate-800"
+                                  >
+                                    {tableCols.map((f: string) => {
+                                      const isGrpCol = groupByFields.includes(f);
+                                      if (isGrpCol) {
+                                        if (f === node.field) {
+                                          const pathKey = `${card.id}::${node.path}`;
+                                          const isExpanded = expandedPaths[pathKey] !== false;
+                                          const hasKids = node.children.length > 0;
+                                          
+                                          return (
+                                            <td
+                                              key={f}
+                                              className="px-4 py-2 text-slate-755 dark:text-slate-200 font-semibold truncate"
+                                              style={{ paddingLeft: `${16 + node.level * 16}px` }}
+                                            >
+                                              <div className="flex items-center gap-1.5">
+                                                {hasKids ? (
+                                                  <button
+                                                    onClick={(e) => {
+                                                      e.stopPropagation();
+                                                      setExpandedPaths(prev => ({
+                                                        ...prev,
+                                                        [pathKey]: !isExpanded
+                                                      }));
+                                                    }}
+                                                    className="w-4 h-4 flex items-center justify-center rounded hover:bg-slate-200 dark:hover:bg-slate-750 text-[10px] text-slate-400 dark:text-slate-500 cursor-pointer select-none font-bold"
+                                                  >
+                                                    {isExpanded ? '▼' : '▶'}
+                                                  </button>
+                                                ) : (
+                                                  <span className="w-4 h-4 shrink-0" />
+                                                )}
+                                                <span>{node.key}</span>
+                                              </div>
+                                            </td>
+                                          );
+                                        } else {
+                                          return (
+                                            <td key={f} className="px-4 py-2 text-slate-350 dark:text-slate-650 italic">
+                                              -
+                                            </td>
+                                          );
+                                        }
+                                      } else {
+                                        // Aggregate value for this node
+                                        const cDef = columns.find((c: any) => c.name === f);
+                                        const isNumeric = cDef?.type === 'number';
+                                        const aggType = aggTypeMap[f] || (isNumeric ? 'sum' : 'none');
+                                        let cellVal: any = '';
+                                        
+                                        if (aggType === 'sum') {
+                                          cellVal = node.rows.reduce((acc: number, r: any) => acc + (Number(r[f]) || 0), 0);
+                                        } else if (aggType === 'count') {
+                                          cellVal = node.rows.length;
+                                        } else if (aggType === 'avg') {
+                                          const nums = node.rows.map((r: any) => Number(r[f])).filter((n: number) => !isNaN(n));
+                                          cellVal = nums.length > 0 ? nums.reduce((acc: number, n: number) => acc + n, 0) / nums.length : 0;
+                                        } else {
+                                          const uniqueVals = Array.from(new Set(node.rows.map((r: any) => String(r[f] ?? '')).filter(Boolean)));
+                                          if (uniqueVals.length === 0) cellVal = '';
+                                          else if (uniqueVals.length <= 3) cellVal = uniqueVals.join(', ');
+                                          else cellVal = `${uniqueVals.slice(0, 3).join(', ')} 等 ${uniqueVals.length} 項`;
+                                        }
+
+                                        return (
+                                          <td key={f} className="px-4 py-2 text-slate-655 dark:text-slate-300 max-w-[200px] truncate">
+                                            {typeof cellVal === 'number' ? (
+                                              <span className="font-mono">{cellVal.toLocaleString()}</span>
+                                            ) : (
+                                              String(cellVal ?? '')
+                                            )}
+                                          </td>
+                                        );
+                                      }
+                                    })}
+                                  </tr>
+                                );
+                              } else {
+                                // Raw Mode rendering
+                                return (
+                                  <tr key={rIdx} className="hover:bg-slate-50/50 dark:hover:bg-slate-855/30 transition-all border-b border-slate-105 dark:border-slate-800">
+                                    {tableCols.map((f: string) => {
+                                      const cell = row[f];
+                                      return (
+                                        <td key={f} className="px-4 py-2 text-slate-655 dark:text-slate-300 max-w-[200px] truncate">
+                                          {typeof cell === 'number' ? (
+                                            <span className="font-mono">{cell.toLocaleString()}</span>
+                                          ) : typeof cell === 'boolean' ? (
+                                            cell ? (
+                                              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-450 border border-emerald-100/40">是</span>
+                                            ) : (
+                                              <span className="inline-flex px-1.5 py-0.5 rounded text-[10px] bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-400">否</span>
+                                            )
+                                          ) : (
+                                            String(cell ?? '')
+                                          )}
+                                        </td>
+                                      );
+                                    })}
+                                  </tr>
+                                );
+                              }
+                            })}
                             {isGrouped && total > 0 && (() => {
                               const isDark = theme.mode === 'dark' || (theme.mode === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
                               const subtotalColor = isDark ? activeBrandLightColor : activeBrandColor;

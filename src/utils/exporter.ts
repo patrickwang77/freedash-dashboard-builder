@@ -185,17 +185,18 @@ export async function exportDashboardHTML(params: {
     });
 
     // Paging status for Data cards
-    const tablePagingState = {}; // cardId -> { currentPage, searchTerm, sortBy, sortDesc }
+    const tablePagingState = {}; // cardId -> { currentPage, searchTerm, sortBy, sortDesc, expandedPaths }
     cards.forEach(card => {
       if (card.type === 'data') {
-        tablePagingState[card.id] = { currentPage: 1, searchTerm: '', sortBy: null, sortDesc: false };
+        tablePagingState[card.id] = { currentPage: 1, searchTerm: '', sortBy: null, sortDesc: false, expandedPaths: {} };
       }
     });
 
     // Helper to calculate grouped pivot data, search, sort, and subtotal for Table Cards
     function processTableData(config, filteredRecords, paging) {
-      const isGrouped = config.groupBy && config.groupBy !== 'raw_data';
-      const groupField = config.groupBy;
+      const groupByFields = config.groupByFields || (config.groupBy && config.groupBy !== 'raw_data' ? [config.groupBy] : []);
+      const isGrouped = groupByFields.length > 0;
+      const groupIntervals = config.groupIntervals || (config.groupBy && config.groupBy !== 'raw_data' ? { [config.groupBy]: config.groupInterval || 'none' } : {});
       const aggTypeMap = config.aggTypeMap || {};
       
       // Get checked fields in user's custom sort order
@@ -205,8 +206,8 @@ export async function exportDashboardHTML(params: {
       if (!isGrouped) {
         tableCols = checkedCols;
       } else {
-        const filteredChecked = checkedCols.filter(f => f !== groupField);
-        tableCols = [groupField, ...filteredChecked];
+        const filteredChecked = checkedCols.filter(f => !groupByFields.includes(f));
+        tableCols = [...groupByFields, ...filteredChecked];
       }
 
       // 1. Search Filter
@@ -222,133 +223,176 @@ export async function exportDashboardHTML(params: {
       }
 
       // 2. Grouping
-      let tableData = searchMatched;
+      let processedRows = [];
+      let subtotalRow = null;
+
       if (isGrouped) {
-        const groupColDef = columns.find(c => c.name === groupField);
-        const groupColType = groupColDef ? groupColDef.type : 'text';
-        
-        let numericBands = [];
-        if (groupColType === 'number' && config.groupInterval === 'range') {
-          const nums = tableData.map(r => Number(r[groupField])).filter(n => !isNaN(n));
-          if (nums.length > 0) {
-            const minVal = Math.min(...nums);
-            const maxVal = Math.max(...nums);
-            const step = (maxVal - minVal) / 5;
-            for (let idx = 0; idx < 5; idx++) {
-              const start = minVal + idx * step;
-              const end = idx === 4 ? maxVal : minVal + (idx + 1) * step;
-              numericBands.push({
-                min: start,
-                max: end,
-                label: Math.round(start).toLocaleString() + ' - ' + Math.round(end).toLocaleString()
+        // Compute numeric bands for intervals
+        let numericBandsMap = {};
+        groupByFields.forEach(gField => {
+          const gColDef = columns.find(c => c.name === gField);
+          const gColType = gColDef ? gColDef.type : 'text';
+          const gInterval = groupIntervals[gField] || 'none';
+          
+          if (gColType === 'number' && gInterval === 'range') {
+            const nums = searchMatched.map(r => Number(r[gField])).filter(n => !isNaN(n));
+            if (nums.length > 0) {
+              const minVal = Math.min(...nums);
+              const maxVal = Math.max(...nums);
+              const step = (maxVal - minVal) / 5;
+              numericBandsMap[gField] = Array.from({ length: 5 }, (_, idx) => {
+                const start = minVal + idx * step;
+                const end = idx === 4 ? maxVal : minVal + (idx + 1) * step;
+                return {
+                  min: start,
+                  max: end,
+                  label: Math.round(start).toLocaleString() + ' - ' + Math.round(end).toLocaleString()
+                };
               });
             }
           }
-        }
-
-        const getGroupKey = (val) => {
-          if (val === undefined || val === null || val === '') return '(空白)';
-          
-          if (groupColType === 'date' || val instanceof Date || (typeof val === 'string' && !isNaN(Date.parse(val)))) {
-            const d = new Date(val);
-            if (!isNaN(d.getTime())) {
-              if (config.groupInterval === 'year') {
-                return d.getFullYear() + '年';
-              }
-              if (config.groupInterval === 'month') {
-                const m = String(d.getMonth() + 1).padStart(2, '0');
-                return d.getFullYear() + '年' + m + '月';
-              }
-              if (config.groupInterval === 'week') {
-                const day = d.getDay();
-                const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-                const monday = new Date(d.setDate(diff));
-                const mm = String(monday.getMonth() + 1).padStart(2, '0');
-                const dd = String(monday.getDate()).padStart(2, '0');
-                return monday.getFullYear() + '/' + mm + '/' + dd + ' 週';
-              }
-            }
-          }
-          
-          if (groupColType === 'number') {
-            if (config.groupInterval === 'range' && numericBands.length > 0) {
-              const num = Number(val);
-              const band = numericBands.find(b => num >= b.min && num <= b.max);
-              if (band) return band.label;
-            }
-          }
-          
-          return String(val);
-        };
-
-        const groups = {};
-        tableData.forEach(row => {
-          const rawVal = row[groupField];
-          const key = getGroupKey(rawVal);
-          if (!groups[key]) groups[key] = [];
-          groups[key].push(row);
         });
 
-        tableData = Object.keys(groups).map(key => {
-          const groupRows = groups[key];
-          const rowObj = {
-            [groupField]: key
-          };
-          
-          tableCols.forEach(col => {
-            if (col === groupField) return;
-            const cDef = columns.find(c => c.name === col);
-            const isNumeric = cDef ? cDef.type === 'number' : false;
-            const aggType = aggTypeMap[col] || (isNumeric ? 'sum' : 'none');
+        const buildTreeGroups = (records, level, parentPath) => {
+          if (level >= groupByFields.length) return [];
+          const fieldName = groupByFields[level];
+          const cDef = columns.find(c => c.name === fieldName);
+          const colType = cDef ? cDef.type : 'text';
+          const interval = groupIntervals[fieldName] || 'none';
+
+          const getGroupKey = (val) => {
+            if (val === undefined || val === null || val === '') return '(空白)';
             
-            if (aggType === 'sum') {
-              rowObj[col] = groupRows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
-            } else if (aggType === 'count') {
-              rowObj[col] = groupRows.length;
-            } else if (aggType === 'avg') {
-              const nums = groupRows.map(r => Number(r[col])).filter(n => !isNaN(n));
-              rowObj[col] = nums.length > 0 ? nums.reduce((acc, n) => acc + n, 0) / nums.length : 0;
-            } else {
-              const uniqueVals = Array.from(new Set(groupRows.map(r => String(r[col] !== undefined && r[col] !== null ? r[col] : '')).filter(Boolean)));
-              if (uniqueVals.length === 0) {
-                rowObj[col] = '';
-              } else if (uniqueVals.length <= 3) {
-                rowObj[col] = uniqueVals.join(', ');
-              } else {
-                rowObj[col] = uniqueVals.slice(0, 3).join(', ') + ' 等 ' + uniqueVals.length + ' 項';
+            if (colType === 'date' || val instanceof Date || (typeof val === 'string' && !isNaN(Date.parse(val)))) {
+              const d = new Date(val);
+              if (!isNaN(d.getTime())) {
+                if (interval === 'year') return d.getFullYear() + '年';
+                if (interval === 'month') {
+                  const m = String(d.getMonth() + 1).padStart(2, '0');
+                  return d.getFullYear() + '年' + m + '月';
+                }
+                if (interval === 'week') {
+                  const day = d.getDay();
+                  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+                  const monday = new Date(d.setDate(diff));
+                  const mm = String(monday.getMonth() + 1).padStart(2, '0');
+                  const dd = String(monday.getDate()).padStart(2, '0');
+                  return monday.getFullYear() + '/' + mm + '/' + dd + ' 週';
+                }
               }
+            }
+            
+            if (colType === 'number') {
+              const bands = numericBandsMap[fieldName];
+              if (interval === 'range' && bands && bands.length > 0) {
+                const num = Number(val);
+                const band = bands.find(b => num >= b.min && num <= b.max);
+                if (band) return band.label;
+              }
+            }
+            
+            return String(val);
+          };
+
+          const groups = {};
+          records.forEach(row => {
+            const rawVal = row[fieldName];
+            const key = getGroupKey(rawVal);
+            if (!groups[key]) groups[key] = [];
+            groups[key].push(row);
+          });
+
+          return Object.keys(groups).sort().map(key => {
+            const groupRows = groups[key];
+            const currentPath = parentPath ? parentPath + ' | ' + key : key;
+            return {
+              key,
+              field: fieldName,
+              level,
+              path: currentPath,
+              rows: groupRows,
+              children: buildTreeGroups(groupRows, level + 1, currentPath)
+            };
+          });
+        };
+
+        let treeData = buildTreeGroups(searchMatched, 0, '');
+
+        const getAggregatedValue = (node, col) => {
+          if (groupByFields.includes(col)) {
+            return col === node.field ? node.key : '';
+          }
+          const cDef = columns.find(c => c.name === col);
+          const isNumeric = cDef ? cDef.type === 'number' : false;
+          const aggType = aggTypeMap[col] || (isNumeric ? 'sum' : 'none');
+          
+          if (aggType === 'sum') {
+            return node.rows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+          } else if (aggType === 'count') {
+            return node.rows.length;
+          } else if (aggType === 'avg') {
+            const nums = node.rows.map(r => Number(r[col])).filter(n => !isNaN(n));
+            return nums.length > 0 ? nums.reduce((acc, n) => acc + n, 0) / nums.length : 0;
+          } else {
+            const uniqueVals = Array.from(new Set(node.rows.map(r => String(r[col] !== undefined && r[col] !== null ? r[col] : '')).filter(Boolean)));
+            return uniqueVals.join(', ');
+          }
+        };
+
+        const sortTreeNodes = (nodes, sortByField, desc) => {
+          const sorted = [...nodes].sort((a, b) => {
+            const valA = getAggregatedValue(a, sortByField);
+            const valB = getAggregatedValue(b, sortByField);
+            
+            if (valA === valB) return 0;
+            if (valA === undefined || valA === null) return 1;
+            if (valB === undefined || valB === null) return -1;
+            
+            if (typeof valA === 'number' && typeof valB === 'number') {
+              return desc ? valB - valA : valA - valB;
+            }
+            return desc ? String(valB).localeCompare(String(valA)) : String(valA).localeCompare(String(valB));
+          });
+          
+          sorted.forEach(node => {
+            if (node.children.length > 0) {
+              node.children = sortTreeNodes(node.children, sortByField, desc);
             }
           });
           
-          return rowObj;
-        });
-      }
+          return sorted;
+        };
 
-      // 3. Sorting
-      if (paging.sortBy) {
-        const sortByField = paging.sortBy;
-        const desc = paging.sortDesc;
-        tableData = [...tableData].sort((a, b) => {
-          const valA = a[sortByField];
-          const valB = b[sortByField];
-          if (valA === valB) return 0;
-          if (valA === undefined || valA === null) return 1;
-          if (valB === undefined || valB === null) return -1;
-          if (typeof valA === 'number' && typeof valB === 'number') {
-            return desc ? valB - valA : valA - valB;
-          }
-          const strA = String(valA).toLowerCase();
-          const strB = String(valB).toLowerCase();
-          return desc ? strB.localeCompare(strA) : strA.localeCompare(strB);
-        });
-      }
+        if (paging.sortBy) {
+          treeData = sortTreeNodes(treeData, paging.sortBy, paging.sortDesc);
+        }
 
-      // 4. Subtotal Row directly calculated from raw searchMatched records
-      let subtotalRow = null;
-      if (isGrouped && tableData.length > 0) {
-        subtotalRow = { [groupField]: '小計 (Total)' };
+        const flattenTree = (nodes) => {
+          const flat = [];
+          const recurse = (node, isVisible) => {
+            if (isVisible) {
+              flat.push(node);
+            }
+            const isExpanded = paging.expandedPaths[node.path] !== false; // default expanded
+            
+            node.children.forEach(child => {
+              recurse(child, isVisible && isExpanded);
+            });
+          };
+          nodes.forEach(node => recurse(node, true));
+          return flat;
+        };
+
+        processedRows = flattenTree(treeData);
+
+        // Subtotal row
+        subtotalRow = { [groupByFields[0]]: '小計 (Total)' };
+        groupByFields.slice(1).forEach(gf => {
+          subtotalRow[gf] = '';
+        });
+        
         tableCols.forEach(col => {
-          if (col === groupField) return;
+          if (groupByFields.includes(col)) return;
           const cDef = columns.find(c => c.name === col);
           const isNumeric = cDef ? cDef.type === 'number' : false;
           const aggType = aggTypeMap[col] || (isNumeric ? 'sum' : 'none');
@@ -364,11 +408,32 @@ export async function exportDashboardHTML(params: {
             subtotalRow[col] = '';
           }
         });
+
+      } else {
+        // Raw mode sorting
+        processedRows = searchMatched;
+        if (paging.sortBy) {
+          const sortByField = paging.sortBy;
+          const desc = paging.sortDesc;
+          processedRows = [...processedRows].sort((a, b) => {
+            const valA = a[sortByField];
+            const valB = b[sortByField];
+            if (valA === valB) return 0;
+            if (valA === undefined || valA === null) return 1;
+            if (valB === undefined || valB === null) return -1;
+            if (typeof valA === 'number' && typeof valB === 'number') {
+              return desc ? valB - valA : valA - valB;
+            }
+            const strA = String(valA).toLowerCase();
+            const strB = String(valB).toLowerCase();
+            return desc ? strB.localeCompare(strA) : strA.localeCompare(strB);
+          });
+        }
       }
 
       return {
         tableCols,
-        rows: tableData,
+        rows: processedRows,
         subtotalRow
       };
     }
@@ -979,12 +1044,7 @@ export async function exportDashboardHTML(params: {
       }
 
       const tableWrap = cardWrapper.querySelector("#table-wrap-" + cardId);
-      const pagerWrap = cardWrapper.querySelector("#pager-wrap-" + cardId);
-      drawTableContents(cardId, paginatedData, tableCols, tableWrap, filteredRecords, config, cardWrapper, subtotalRow);
-      drawPaginationControls(cardId, paging.currentPage, totalPages, filteredRecords, config, pagerWrap);
-    }
-
-    function drawTableContents(cardId, rows, fields, targetWrapper, filteredRecords, config, cardWrapper, subtotalRow) {
+      const pagerWrap = cardWrapper.querySelector("#pager-wrap-" + card    function drawTableContents(cardId, rows, fields, targetWrapper, filteredRecords, config, cardWrapper, subtotalRow) {
       const wrapper = targetWrapper || document.getElementById("table-wrap-" + cardId);
       if (!wrapper) return;
       wrapper.innerHTML = '';
@@ -993,6 +1053,10 @@ export async function exportDashboardHTML(params: {
         wrapper.innerHTML = '<div class="text-slate-400 dark:text-slate-500 text-center py-10 text-sm font-medium">沒有符合篩選條件的資料</div>';
         return;
       }
+
+      const groupByFields = config.groupByFields || (config.groupBy && config.groupBy !== 'raw_data' ? [config.groupBy] : []);
+      const isGrouped = groupByFields.length > 0;
+      const aggTypeMap = config.aggTypeMap || {};
 
       const table = document.createElement('table');
       table.className = 'w-full text-sm text-left border-collapse';
@@ -1047,27 +1111,112 @@ export async function exportDashboardHTML(params: {
       rows.forEach(row => {
         const tr = document.createElement('tr');
         tr.className = 'hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all border-b border-slate-100 dark:border-slate-800';
-        fields.forEach(f => {
-          const td = document.createElement('td');
-          td.className = 'px-4 py-3 text-slate-650 dark:text-slate-355 max-w-[200px] truncate';
+
+        if (isGrouped) {
+          // row is a GroupNode
+          tr.setAttribute('data-path', row.path);
+          tr.setAttribute('data-level', row.level);
           
-          const rawVal = row[f];
-          if (typeof rawVal === 'number') {
-            td.innerText = rawVal.toLocaleString();
-            td.classList.add('font-mono');
-          } else if (typeof rawVal === 'boolean') {
-            td.innerHTML = rawVal 
-              ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/35 dark:text-emerald-450 border border-emerald-100 dark:border-emerald-800/30">是</span>'
-              : '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-850 dark:text-slate-400 border border-slate-200 dark:border-slate-750">否</span>';
-          } else {
-            td.innerText = rawVal !== undefined && rawVal !== null ? String(rawVal) : '';
-          }
-          tr.appendChild(td);
-        });
+          const paging = tablePagingState[cardId];
+          const isExpanded = paging.expandedPaths[row.path] !== false;
+          tr.setAttribute('data-expanded', isExpanded ? 'true' : 'false');
+
+          fields.forEach(f => {
+            const td = document.createElement('td');
+            
+            const isGrpCol = groupByFields.includes(f);
+            if (isGrpCol) {
+              if (f === row.field) {
+                td.className = 'px-4 py-3 text-slate-750 dark:text-slate-200 font-semibold truncate';
+                td.style.paddingLeft = (16 + row.level * 16) + 'px';
+
+                const cellDiv = document.createElement('div');
+                cellDiv.className = 'flex items-center gap-1.5';
+
+                const hasKids = row.children && row.children.length > 0;
+                if (hasKids) {
+                  const btn = document.createElement('button');
+                  btn.className = 'w-4 h-4 flex items-center justify-center rounded hover:bg-slate-200 dark:hover:bg-slate-700 text-[10px] text-slate-400 font-bold select-none cursor-pointer shrink-0';
+                  btn.innerText = isExpanded ? '▼' : '▶';
+                  btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    paging.expandedPaths[row.path] = !isExpanded;
+                    updateTableSubComponents(cardId, cardWrapper, filteredRecords, config);
+                  });
+                  cellDiv.appendChild(btn);
+                } else {
+                  const spacer = document.createElement('span');
+                  spacer.className = 'w-4 h-4 shrink-0';
+                  cellDiv.appendChild(spacer);
+                }
+
+                const labelSpan = document.createElement('span');
+                labelSpan.innerText = row.key;
+                cellDiv.appendChild(labelSpan);
+                td.appendChild(cellDiv);
+
+              } else {
+                td.className = 'px-4 py-3 text-slate-350 dark:text-slate-655 italic';
+                td.innerText = '-';
+              }
+            } else {
+              // Aggregate value for this node
+              td.className = 'px-4 py-3 text-slate-650 dark:text-slate-355 max-w-[200px] truncate';
+              
+              const cDef = columns.find(c => c.name === f);
+              const isNumeric = cDef ? cDef.type === 'number' : false;
+              const aggType = aggTypeMap[f] || (isNumeric ? 'sum' : 'none');
+              let cellVal = '';
+
+              if (aggType === 'sum') {
+                cellVal = row.rows.reduce((acc, r) => acc + (Number(r[f]) || 0), 0);
+              } else if (aggType === 'count') {
+                cellVal = row.rows.length;
+              } else if (aggType === 'avg') {
+                const nums = row.rows.map(r => Number(r[f])).filter(n => !isNaN(n));
+                cellVal = nums.length > 0 ? nums.reduce((acc, n) => acc + n, 0) / nums.length : 0;
+              } else {
+                const uniqueVals = Array.from(new Set(row.rows.map(r => String(r[f] !== undefined && r[f] !== null ? r[f] : '')).filter(Boolean)));
+                if (uniqueVals.length === 0) cellVal = '';
+                else if (uniqueVals.length <= 3) cellVal = uniqueVals.join(', ');
+                else cellVal = uniqueVals.slice(0, 3).join(', ') + ' 等 ' + uniqueVals.length + ' 項';
+              }
+
+              if (typeof cellVal === 'number') {
+                td.innerText = cellVal.toLocaleString();
+                td.classList.add('font-mono');
+              } else {
+                td.innerText = cellVal;
+              }
+            }
+            tr.appendChild(td);
+          });
+
+        } else {
+          // Raw mode
+          fields.forEach(f => {
+            const td = document.createElement('td');
+            td.className = 'px-4 py-3 text-slate-655 dark:text-slate-355 max-w-[200px] truncate';
+            
+            const rawVal = row[f];
+            if (typeof rawVal === 'number') {
+              td.innerText = rawVal.toLocaleString();
+              td.classList.add('font-mono');
+            } else if (typeof rawVal === 'boolean') {
+              td.innerHTML = rawVal 
+                ? '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-900/35 dark:text-emerald-450 border border-emerald-100 dark:border-emerald-800/30">是</span>'
+                : '<span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-850 dark:text-slate-400 border border-slate-200 dark:border-slate-750">否</span>';
+            } else {
+              td.innerText = rawVal !== undefined && rawVal !== null ? String(rawVal) : '';
+            }
+            tr.appendChild(td);
+          });
+        }
+
         tbody.appendChild(tr);
       });
 
-      // Append subtotal row in offline page if it exists
+      // Append subtotal row
       if (subtotalRow) {
         const tr = document.createElement('tr');
         tr.className = 'bg-slate-50/70 dark:bg-slate-900/40 font-extrabold border-t-2 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200';

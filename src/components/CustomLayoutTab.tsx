@@ -947,85 +947,228 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-1.5">分組彙總欄位 (Group By)</label>
-                    <select
-                      value={(editingCard.config as any).groupBy || 'raw_data'}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        const nextGroupBy = val === 'raw_data' ? undefined : val;
-                        
-                        // Automatically check and prepend the group-by column to fields
-                        let nextFields = [...((editingCard.config as any).fields || [])];
-                        if (nextGroupBy) {
-                          nextFields = nextFields.filter((f: string) => f !== nextGroupBy);
-                          nextFields = [nextGroupBy, ...nextFields];
-                        }
-                        
-                        updateCardConfig(editingCard.id, { 
-                          groupBy: nextGroupBy,
-                          groupInterval: 'none', // Reset interval
-                          fields: nextFields
-                        });
-                      }}
-                      className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand focus:outline-none"
-                    >
-                      <option value="raw_data">🗂️ 原始明細資料 (Raw Data)</option>
-                      {columns.map((c: any) => (
-                        <option key={c.name} value={c.name}>📊 依「{c.name}」分組彙總</option>
-                      ))}
-                    </select>
-                  </div>
-
                   {(() => {
-                    const grp = (editingCard.config as any).groupBy;
-                    if (!grp || grp === 'raw_data') return null;
-                    const colDef = columns.find((c: any) => c.name === grp);
-                    if (!colDef) return null;
+                    const config = editingCard.config as any;
+                    // Backward compatibility upgrade:
+                    const rawGroupByFields = config.groupByFields || (config.groupBy && config.groupBy !== 'raw_data' ? [config.groupBy] : []);
+                    const rawGroupIntervals = config.groupIntervals || (config.groupBy && config.groupBy !== 'raw_data' ? { [config.groupBy]: config.groupInterval || 'none' } : {});
                     
-                    if (colDef.type === 'date') {
-                      return (
-                        <div className="col-span-1 md:col-span-2">
-                          <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-1.5">日期分群維度 (Date Interval)</label>
+                    const isGroupedMode = rawGroupByFields.length > 0;
+                    
+                    const handleModeChange = (mode: 'raw' | 'grouped') => {
+                      if (mode === 'raw') {
+                        updateCardConfig(editingCard.id, {
+                          groupBy: undefined,
+                          groupByFields: [],
+                          groupIntervals: {}
+                        });
+                      } else {
+                        // Default to the first column
+                        const defaultCol = columns[0]?.name;
+                        if (defaultCol) {
+                          updateCardConfig(editingCard.id, {
+                            groupBy: defaultCol,
+                            groupByFields: [defaultCol],
+                            groupIntervals: { [defaultCol]: 'none' }
+                          });
+                        }
+                      }
+                    };
+
+                    const handleAddGroupField = (fieldName: string) => {
+                      const nextGroupFields = [...rawGroupByFields, fieldName];
+                      const nextIntervals = { ...rawGroupIntervals, [fieldName]: 'none' };
+                      
+                      // Prepend all group-by fields in order to fields list
+                      let nextFields = [...(config.fields || [])];
+                      nextFields = nextFields.filter((f: string) => !nextGroupFields.includes(f));
+                      nextFields = [...nextGroupFields, ...nextFields];
+
+                      updateCardConfig(editingCard.id, {
+                        groupBy: nextGroupFields[0], // Keep old field in sync as fallback
+                        groupByFields: nextGroupFields,
+                        groupIntervals: nextIntervals,
+                        fields: nextFields
+                      });
+                    };
+
+                    const handleRemoveGroupField = (fieldName: string) => {
+                      const nextGroupFields = rawGroupByFields.filter((f: string) => f !== fieldName);
+                      const nextIntervals = { ...rawGroupIntervals };
+                      delete nextIntervals[fieldName];
+
+                      updateCardConfig(editingCard.id, {
+                        groupBy: nextGroupFields[0], // Fallback
+                        groupByFields: nextGroupFields,
+                        groupIntervals: nextIntervals
+                      });
+                    };
+
+                    const handleGroupFieldMove = (fieldName: string, direction: number) => {
+                      const idx = rawGroupByFields.indexOf(fieldName);
+                      if (idx === -1) return;
+                      const nextIdx = idx + direction;
+                      if (nextIdx < 0 || nextIdx >= rawGroupByFields.length) return;
+
+                      const nextGroupFields = [...rawGroupByFields];
+                      nextGroupFields[idx] = nextGroupFields[nextIdx];
+                      nextGroupFields[nextIdx] = fieldName;
+
+                      let nextFields = [...(config.fields || [])];
+                      nextFields = nextFields.filter((f: string) => !nextGroupFields.includes(f));
+                      nextFields = [...nextGroupFields, ...nextFields];
+
+                      updateCardConfig(editingCard.id, {
+                        groupBy: nextGroupFields[0], // Fallback
+                        groupByFields: nextGroupFields,
+                        fields: nextFields
+                      });
+                    };
+
+                    const handleIntervalChange = (fieldName: string, interval: any) => {
+                      const nextIntervals = { ...rawGroupIntervals, [fieldName]: interval };
+                      updateCardConfig(editingCard.id, {
+                        groupIntervals: nextIntervals
+                      });
+                    };
+
+                    return (
+                      <div className="col-span-1 md:col-span-2 space-y-4">
+                        {/* Grouping Mode Selector */}
+                        <div>
+                          <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-1.5">分組彙總模式 (Grouping Mode)</label>
                           <select
-                            value={(editingCard.config as any).groupInterval || 'none'}
-                            onChange={(e) => updateCardConfig(editingCard.id, { groupInterval: e.target.value as any })}
+                            value={isGroupedMode ? 'grouped' : 'raw'}
+                            onChange={(e) => handleModeChange(e.target.value as any)}
                             className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand focus:outline-none"
                           >
-                            <option value="none">📅 不分群 (Raw Date)</option>
-                            <option value="week">📅 按週 (Weekly)</option>
-                            <option value="month">📅 按月 (Monthly)</option>
-                            <option value="year">📅 按年 (Yearly)</option>
+                            <option value="raw">🗂️ 原始明細資料 (Raw Data)</option>
+                            <option value="grouped">📊 啟用分組彙總 (Grouped / Pivot)</option>
                           </select>
                         </div>
-                      );
-                    }
-                    
-                    if (colDef.type === 'number') {
-                      return (
-                        <div className="col-span-1 md:col-span-2">
-                          <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-1.5">數值分群區間 (Number Range)</label>
-                          <select
-                            value={(editingCard.config as any).groupInterval || 'none'}
-                            onChange={(e) => updateCardConfig(editingCard.id, { groupInterval: e.target.value as any })}
-                            className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand focus:outline-none"
-                          >
-                            <option value="none">🔢 不分群 (Raw Value)</option>
-                            <option value="range">🔢 自動劃分 5 個數值等距區間</option>
-                          </select>
-                        </div>
-                      );
-                    }
-                    
-                    return null;
+
+                        {/* If Grouped Mode, render active grouping fields and intervals */}
+                        {isGroupedMode && (
+                          <div className="space-y-3">
+                            <label className="block text-xs font-bold text-slate-400 dark:text-slate-500">階層分組欄位與維度</label>
+                            
+                            <div className="space-y-2 border-l-2 border-brand/20 pl-3">
+                              {rawGroupByFields.map((fName: string, idx: number) => {
+                                const cDef = columns.find((c: any) => c.name === fName);
+                                const isDateCol = cDef?.type === 'date';
+                                const isNumCol = cDef?.type === 'number';
+                                const currentInterval = rawGroupIntervals[fName] || 'none';
+
+                                return (
+                                  <div key={fName} className="bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800/80 rounded-xl p-3 space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <div className="flex items-center gap-2 truncate">
+                                        <span className="text-[10px] bg-brand text-white px-1.5 py-0.5 rounded font-bold shrink-0">L{idx + 1}</span>
+                                        <span className="text-xs font-bold text-slate-700 dark:text-slate-200 truncate">{fName}</span>
+                                      </div>
+                                      
+                                      <div className="flex items-center gap-1">
+                                        <button
+                                          type="button"
+                                          disabled={idx === 0}
+                                          onClick={() => handleGroupFieldMove(fName, -1)}
+                                          className="p-1 rounded text-slate-400 hover:text-brand hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-30 cursor-pointer text-[10px]"
+                                          title="提升階層"
+                                        >
+                                          ▲
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={idx === rawGroupByFields.length - 1}
+                                          onClick={() => handleGroupFieldMove(fName, 1)}
+                                          className="p-1 rounded text-slate-400 hover:text-brand hover:bg-slate-200 dark:hover:bg-slate-800 disabled:opacity-30 cursor-pointer text-[10px]"
+                                          title="降低階層"
+                                        >
+                                          ▼
+                                        </button>
+                                        {rawGroupByFields.length > 1 && (
+                                          <button
+                                            type="button"
+                                            onClick={() => handleRemoveGroupField(fName)}
+                                            className="p-1 rounded text-slate-400 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/20 cursor-pointer text-[10px]"
+                                            title="移除分組"
+                                          >
+                                            ❌
+                                          </button>
+                                        )}
+                                      </div>
+                                    </div>
+
+                                    {/* Interval dropdown */}
+                                    {isDateCol && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-slate-400 shrink-0 font-medium">日期維度:</span>
+                                        <select
+                                          value={currentInterval}
+                                          onChange={(e) => handleIntervalChange(fName, e.target.value)}
+                                          className="flex-1 text-[10px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus:ring-1 focus:ring-brand outline-none"
+                                        >
+                                          <option value="none">📅 不分群 (Raw Date)</option>
+                                          <option value="week">📅 按週 (Weekly)</option>
+                                          <option value="month">📅 按月 (Monthly)</option>
+                                          <option value="year">📅 按年 (Yearly)</option>
+                                        </select>
+                                      </div>
+                                    )}
+
+                                    {isNumCol && (
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-[10px] text-slate-400 shrink-0 font-medium">數值區間:</span>
+                                        <select
+                                          value={currentInterval}
+                                          onChange={(e) => handleIntervalChange(fName, e.target.value)}
+                                          className="flex-1 text-[10px] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 focus:ring-1 focus:ring-brand outline-none"
+                                        >
+                                          <option value="none">🔢 不分群 (Raw Value)</option>
+                                          <option value="range">🔢 自動劃分 5 個等距區間</option>
+                                        </select>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {/* Add group field dropdown */}
+                            {columns.some((c: any) => !rawGroupByFields.includes(c.name)) && (
+                              <div className="pt-1">
+                                <select
+                                  value=""
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      handleAddGroupField(e.target.value);
+                                    }
+                                  }}
+                                  className="w-full text-xs bg-brand/5 hover:bg-brand/10 border border-dashed border-brand/35 text-brand rounded-xl px-3 py-2 outline-none cursor-pointer font-bold transition-all text-center"
+                                >
+                                  <option value="">➕ 新增分組階層欄位 (Add Group-By Layer)</option>
+                                  {columns
+                                    .filter((c: any) => !rawGroupByFields.includes(c.name))
+                                    .map((c: any) => (
+                                      <option key={c.name} value={c.name}>📊 {c.name}</option>
+                                    ))}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
                   })()}
 
                   {(() => {
                     const config = editingCard.config as any;
                     const currentFields = config.fields || [];
                     const aggTypeMap = config.aggTypeMap || {};
-                    const isGrouped = config.groupBy && config.groupBy !== 'raw_data';
-                    const groupField = config.groupBy;
+                    
+                    // Resolved Grouping Fields
+                    const rawGroupByFields = config.groupByFields || (config.groupBy && config.groupBy !== 'raw_data' ? [config.groupBy] : []);
+                    const isGrouped = rawGroupByFields.length > 0;
                     
                     // Filter checked columns in the actual spreadsheet columns order
                     const checkedCols = currentFields.filter((name: string) => columns.some((c: any) => c.name === name));
@@ -1048,6 +1191,12 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                       const newIndex = index + direction;
                       if (newIndex < 0 || newIndex >= currentFields.length) return;
                       
+                      // Keep group sections distinct
+                      const targetField = currentFields[newIndex];
+                      const isFieldGrp = rawGroupByFields.includes(field);
+                      const isTargetGrp = rawGroupByFields.includes(targetField);
+                      if (isFieldGrp !== isTargetGrp) return;
+                      
                       const nextFields = [...currentFields];
                       nextFields[index] = nextFields[newIndex];
                       nextFields[newIndex] = field;
@@ -1068,7 +1217,14 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                             const colDef = columns.find((c: any) => c.name === name);
                             const isNum = colDef?.type === 'number';
                             const currentAgg = aggTypeMap[name] || (isNum ? 'sum' : 'none');
-                            const showAggDropdown = isGrouped && name !== groupField;
+                            
+                            const isGrpField = rawGroupByFields.includes(name);
+                            const showAggDropdown = isGrouped && !isGrpField;
+
+                            // Determine if we can move it
+                            const grpCount = rawGroupByFields.length;
+                            const canMoveUp = isGrpField ? (idx > 0) : (idx > grpCount);
+                            const canMoveDown = isGrpField ? (idx < grpCount - 1) : (idx < checkedCols.length - 1);
 
                             return (
                               <div key={name} className="flex flex-col sm:flex-row sm:items-center justify-between bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 p-2 rounded-lg gap-2 group hover:border-brand/40 transition-all">
@@ -1076,10 +1232,14 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                                   <input
                                     type="checkbox"
                                     checked={true}
+                                    disabled={isGrpField} // Group-by fields must remain checked
                                     onChange={() => toggleCol(name, true)}
                                     className="rounded border-slate-300 text-brand focus:ring-brand w-3.5 h-3.5"
                                   />
                                   <span className="truncate font-semibold">{name}</span>
+                                  {isGrpField && (
+                                    <span className="text-[9px] bg-brand/10 text-brand px-1.5 py-0.2 rounded font-extrabold shrink-0 border border-brand/20">分組</span>
+                                  )}
                                 </label>
                                 
                                 <div className="flex items-center gap-2 shrink-0">
@@ -1099,7 +1259,7 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                                   <div className="flex items-center gap-0.5">
                                     <button
                                       type="button"
-                                      disabled={idx === 0}
+                                      disabled={!canMoveUp}
                                       onClick={() => moveField(name, -1)}
                                       className="p-1 rounded text-slate-400 hover:text-brand hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer text-xs"
                                       title="向上移動"
@@ -1108,7 +1268,7 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                                     </button>
                                     <button
                                       type="button"
-                                      disabled={idx === checkedCols.length - 1}
+                                      disabled={!canMoveDown}
                                       onClick={() => moveField(name, 1)}
                                       className="p-1 rounded text-slate-400 hover:text-brand hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer text-xs"
                                       title="向下移動"
