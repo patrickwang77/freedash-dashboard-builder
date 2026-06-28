@@ -218,7 +218,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   // Chart configuration builder
   const buildChartProps = (card: DashboardCard) => {
     const config = card.config as any;
-    const isDark = document.documentElement.classList.contains('dark');
+    const isDark = theme.mode === 'dark' || (theme.mode === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     
     // Group records by X axis
     const groups: Record<string, any[]> = {};
@@ -365,7 +365,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         plugins: {
           legend: {
             display: true,
-            labels: { color: labelColor, font: { size: 10 } }
+            labels: { color: labelColor, font: { size: 10, family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' } }
           },
           bulletBands: {
             hasThreshold: config.hasThreshold,
@@ -375,11 +375,11 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
         scales: {
           x: {
             grid: { color: gridColor },
-            ticks: { color: labelColor, font: { size: 10 } }
+            ticks: { color: labelColor, font: { size: 10, family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' } }
           },
           y: {
             grid: { color: gridColor },
-            ticks: { color: labelColor, font: { size: 10 } }
+            ticks: { color: labelColor, font: { size: 10, family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' } }
           }
         }
       };
@@ -422,11 +422,11 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
           : {
               x: {
                 grid: { color: gridColor },
-                ticks: { color: labelColor, font: { size: 10 } }
+                ticks: { color: labelColor, font: { size: 10, family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' } }
               },
               y: {
                 grid: { color: gridColor },
-                ticks: { color: labelColor, font: { size: 10 } }
+                ticks: { color: labelColor, font: { size: 10, family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' } }
               }
             }
       };
@@ -620,6 +620,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                 const { chartData, chartOptions } = buildChartProps(card);
                 const chartHeightClass = card.h === 'lg' ? 'h-96' : card.h === 'sm' ? 'h-28' : 'h-60';
 
+                const chartKey = `${theme.mode}_${theme.name}_${card.id}`;
                 return (
                   <div
                     key={card.id}
@@ -630,10 +631,10 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                     </h3>
                     <div className={`${chartHeightClass} relative w-full flex items-center justify-center`}>
                       {config.type === 'pie' ? (
-                        <Doughnut data={chartData} options={chartOptions} />
+                        <Doughnut key={chartKey} data={chartData} options={chartOptions} />
                       ) : config.type === 'progress-ring' ? (
                         <>
-                          <Doughnut data={chartData} options={chartOptions} />
+                          <Doughnut key={chartKey} data={chartData} options={chartOptions} />
                           {(() => {
                             const actual = aggregate(filteredData, config.yAxis, config.agg);
                             const plan = config.isPlanStatic 
@@ -654,11 +655,11 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                           })()}
                         </>
                       ) : config.type === 'line' || config.type === 'area' ? (
-                        <Line data={chartData} options={chartOptions} />
+                        <Line key={chartKey} data={chartData} options={chartOptions} />
                       ) : config.type === 'bar-overlap' ? (
-                        <Bar data={chartData} options={chartOptions} plugins={[bulletBandsPlugin]} />
+                        <Bar key={chartKey} data={chartData} options={chartOptions} plugins={[bulletBandsPlugin]} />
                       ) : (
-                        <Bar data={chartData} options={chartOptions} />
+                        <Bar key={chartKey} data={chartData} options={chartOptions} />
                       )}
                     </div>
                   </div>
@@ -672,22 +673,26 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                 // Determine table columns
                 const isGrouped = config.groupBy && config.groupBy !== 'raw_data';
                 const groupField = config.groupBy;
-                const aggFields = config.aggFields || [];
+                const aggTypeMap = config.aggTypeMap || {};
                 
+                // Get checked fields in user's custom sort order
+                let checkedCols = config.fields && config.fields.length > 0 ? config.fields : columns.map((c: any) => c.name);
+                
+                // If grouped, ensure groupField is in tableCols and is forced as the first column
                 let tableCols: string[] = [];
                 if (!isGrouped) {
-                  tableCols = config.fields && config.fields.length > 0 ? config.fields : columns.map(c => c.name);
+                  tableCols = checkedCols;
                 } else {
-                  const otherChecked = (config.fields || []).filter((f: string) => f !== groupField && !aggFields.includes(f));
-                  tableCols = [groupField, ...aggFields, ...otherChecked];
+                  let filteredChecked = checkedCols.filter((f: string) => f !== groupField);
+                  tableCols = [groupField, ...filteredChecked];
                 }
 
                 // Apply search in React
                 let sourceData = filteredData;
                 if (state.search.trim() !== '') {
                   const query = state.search.toLowerCase();
-                  sourceData = sourceData.filter((row) =>
-                    columns.some((col) =>
+                  sourceData = sourceData.filter((row: any) =>
+                    columns.some((col: any) =>
                       String(row[col.name] ?? '').toLowerCase().includes(query)
                     )
                   );
@@ -696,12 +701,12 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                 // Apply grouping if not raw data
                 let tData = sourceData;
                 if (isGrouped) {
-                  const groupColDef = columns.find(c => c.name === groupField);
+                  const groupColDef = columns.find((c: any) => c.name === groupField);
                   const groupColType = groupColDef?.type || 'text';
                   
                   let numericBands: { min: number; max: number; label: string }[] = [];
                   if (groupColType === 'number' && config.groupInterval === 'range') {
-                    const nums = sourceData.map(r => Number(r[groupField])).filter(n => !isNaN(n));
+                    const nums = sourceData.map((r: any) => Number(r[groupField])).filter((n: number) => !isNaN(n));
                     if (nums.length > 0) {
                       const minVal = Math.min(...nums);
                       const maxVal = Math.max(...nums);
@@ -718,7 +723,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                     }
                   }
 
-                  const getGroupKey = (val: any) => {
+                  const getGroupKey = (val: any): string => {
                     if (val === undefined || val === null || val === '') return '(空白)';
                     
                     if (groupColType === 'date' || val instanceof Date || (typeof val === 'string' && !isNaN(Date.parse(val)))) {
@@ -754,28 +759,34 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                   };
 
                   const groups: Record<string, any[]> = {};
-                  sourceData.forEach(row => {
+                  sourceData.forEach((row: any) => {
                     const rawVal = row[groupField];
                     const key = getGroupKey(rawVal);
                     if (!groups[key]) groups[key] = [];
                     groups[key].push(row);
                   });
 
-                  tData = Object.keys(groups).map(key => {
+                  tData = Object.keys(groups).map((key: string) => {
                     const groupRows = groups[key];
                     const rowObj: Record<string, any> = {
                       [groupField]: key
                     };
                     
-                    tableCols.forEach(col => {
+                    tableCols.forEach((col: string) => {
                       if (col === groupField) return;
-                      const cDef = columns.find(c => c.name === col);
+                      const cDef = columns.find((c: any) => c.name === col);
                       const isNumeric = cDef?.type === 'number';
+                      const aggType = aggTypeMap[col] || (isNumeric ? 'sum' : 'none');
                       
-                      if (aggFields.includes(col) || isNumeric) {
-                        rowObj[col] = groupRows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+                      if (aggType === 'sum') {
+                        rowObj[col] = groupRows.reduce((acc: number, r: any) => acc + (Number(r[col]) || 0), 0);
+                      } else if (aggType === 'count') {
+                        rowObj[col] = groupRows.length;
+                      } else if (aggType === 'avg') {
+                        const nums = groupRows.map((r: any) => Number(r[col])).filter((n: number) => !isNaN(n));
+                        rowObj[col] = nums.length > 0 ? nums.reduce((acc: number, n: number) => acc + n, 0) / nums.length : 0;
                       } else {
-                        const uniqueVals = Array.from(new Set(groupRows.map(r => String(r[col] ?? '')).filter(Boolean)));
+                        const uniqueVals = Array.from(new Set(groupRows.map((r: any) => String(r[col] ?? '')).filter(Boolean)));
                         if (uniqueVals.length === 0) {
                           rowObj[col] = '';
                         } else if (uniqueVals.length <= 3) {
@@ -794,7 +805,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                 if (state.sortBy) {
                   const sortByField = state.sortBy;
                   const desc = !!state.sortDesc;
-                  tData = [...tData].sort((a, b) => {
+                  tData = [...tData].sort((a: any, b: any) => {
                     const valA = a[sortByField];
                     const valB = b[sortByField];
 
@@ -812,17 +823,23 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                   });
                 }
 
-                // Compute Subtotal Row values
+                // Compute Subtotal Row values directly from raw sourceData for mathematical accuracy
                 const subtotalObj: Record<string, any> = {};
                 if (isGrouped && tData.length > 0) {
                   subtotalObj[groupField] = '小計 (Total)';
-                  tableCols.forEach(col => {
+                  tableCols.forEach((col: string) => {
                     if (col === groupField) return;
-                    const cDef = columns.find(c => c.name === col);
+                    const cDef = columns.find((c: any) => c.name === col);
                     const isNumeric = cDef?.type === 'number';
+                    const aggType = aggTypeMap[col] || (isNumeric ? 'sum' : 'none');
                     
-                    if (aggFields.includes(col) || isNumeric) {
-                      subtotalObj[col] = tData.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+                    if (aggType === 'sum') {
+                      subtotalObj[col] = sourceData.reduce((acc: number, r: any) => acc + (Number(r[col]) || 0), 0);
+                    } else if (aggType === 'avg') {
+                      const nums = sourceData.map((r: any) => Number(r[col])).filter((n: number) => !isNaN(n));
+                      subtotalObj[col] = nums.length > 0 ? nums.reduce((acc: number, n: number) => acc + n, 0) / nums.length : 0;
+                    } else if (aggType === 'count') {
+                      subtotalObj[col] = sourceData.length;
                     } else {
                       subtotalObj[col] = '';
                     }
@@ -892,7 +909,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                     </div>
 
                     {/* Table View */}
-                    <div className="flex-1 overflow-x-auto border border-slate-100 dark:border-slate-850 rounded-xl">
+                    <div className="flex-1 overflow-x-auto border border-slate-100 dark:border-slate-855 rounded-xl">
                       {total === 0 ? (
                         <div className="text-center text-slate-450 dark:text-slate-500 py-12 text-xs font-semibold">
                           無符合篩選條件的資料
@@ -908,11 +925,11 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                                   <th
                                     key={f}
                                     onClick={() => handleSortChange(f)}
-                                    className="px-4 py-2.5 font-bold text-slate-600 dark:text-slate-355 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-850/60 select-none group"
+                                    className="px-4 py-2.5 font-bold text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-855/60 select-none group"
                                   >
                                     <div className="flex items-center gap-1">
                                       <span>{f}</span>
-                                      <span className="text-[10px] text-slate-300 dark:text-slate-600 group-hover:text-slate-450 transition-colors">
+                                      <span className="text-[10px] text-slate-300 dark:text-slate-600 group-hover:text-slate-455 transition-colors">
                                         {isSorted ? (isDesc ? '▼' : '▲') : '↕'}
                                       </span>
                                     </div>
@@ -922,12 +939,12 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                            {pageData.map((row, rIdx) => (
-                              <tr key={rIdx} className="hover:bg-slate-50/50 dark:hover:bg-slate-850/30 transition-all border-b border-slate-100 dark:border-slate-800">
+                            {pageData.map((row: any, rIdx: number) => (
+                              <tr key={rIdx} className="hover:bg-slate-50/50 dark:hover:bg-slate-855/30 transition-all border-b border-slate-105 dark:border-slate-800">
                                 {tableCols.map((f: string) => {
                                   const cell = row[f];
                                   return (
-                                    <td key={f} className="px-4 py-2 text-slate-650 dark:text-slate-355 max-w-[200px] truncate">
+                                    <td key={f} className="px-4 py-2 text-slate-655 dark:text-slate-300 max-w-[200px] truncate">
                                       {typeof cell === 'number' ? (
                                         <span className="font-mono">{cell.toLocaleString()}</span>
                                       ) : typeof cell === 'boolean' ? (
@@ -944,22 +961,26 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                                 })}
                               </tr>
                             ))}
-                            {isGrouped && total > 0 && (
-                              <tr className="bg-slate-50/70 dark:bg-slate-900/40 font-extrabold border-t-2 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
-                                {tableCols.map((f: string) => {
-                                  const cell = subtotalObj[f];
-                                  return (
-                                    <td key={f} className="px-4 py-2.5 font-bold">
-                                      {typeof cell === 'number' ? (
-                                        <span className="font-mono">{cell.toLocaleString()}</span>
-                                      ) : (
-                                        String(cell ?? '')
-                                      )}
-                                    </td>
-                                  );
-                                })}
-                              </tr>
-                            )}
+                            {isGrouped && total > 0 && (() => {
+                              const isDark = theme.mode === 'dark' || (theme.mode === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                              const subtotalColor = isDark ? activeBrandLightColor : activeBrandColor;
+                              return (
+                                <tr className="bg-slate-50/70 dark:bg-slate-900/40 font-extrabold border-t-2 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200">
+                                  {tableCols.map((f: string) => {
+                                    const cell = subtotalObj[f];
+                                    return (
+                                      <td key={f} className="px-4 py-2.5 font-bold" style={{ color: subtotalColor }}>
+                                        {typeof cell === 'number' ? (
+                                          <span className="font-mono">{cell.toLocaleString()}</span>
+                                        ) : (
+                                          String(cell ?? '')
+                                        )}
+                                      </td>
+                                    );
+                                  })}
+                                </tr>
+                              );
+                            })()}
                           </tbody>
                         </table>
                       )}

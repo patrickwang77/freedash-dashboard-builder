@@ -46,8 +46,9 @@ export interface DataConfig {
   pageSize: number;
   fields: string[]; // List of column names to display (reorderable)
   groupBy?: string; // Column to group by (undefined or 'raw_data' means raw data)
-  aggFields?: string[]; // Columns to aggregate (sum) when grouped
+  aggFields?: string[]; // Columns to aggregate (sum) when grouped (deprecated)
   groupInterval?: 'none' | 'week' | 'month' | 'year' | 'range'; // Interval for grouping (date/number)
+  aggTypeMap?: Record<string, 'sum' | 'count' | 'avg' | 'none'>; // Map of fieldName -> aggregation type
 }
 
 export interface DashboardCard {

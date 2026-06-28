@@ -953,16 +953,25 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                       value={(editingCard.config as any).groupBy || 'raw_data'}
                       onChange={(e) => {
                         const val = e.target.value;
+                        const nextGroupBy = val === 'raw_data' ? undefined : val;
+                        
+                        // Automatically check and prepend the group-by column to fields
+                        let nextFields = [...((editingCard.config as any).fields || [])];
+                        if (nextGroupBy) {
+                          nextFields = nextFields.filter((f: string) => f !== nextGroupBy);
+                          nextFields = [nextGroupBy, ...nextFields];
+                        }
+                        
                         updateCardConfig(editingCard.id, { 
-                          groupBy: val === 'raw_data' ? undefined : val,
+                          groupBy: nextGroupBy,
                           groupInterval: 'none', // Reset interval
-                          aggFields: [] // Reset aggregates
+                          fields: nextFields
                         });
                       }}
                       className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand focus:outline-none"
                     >
                       <option value="raw_data">🗂️ 原始明細資料 (Raw Data)</option>
-                      {columns.map(c => (
+                      {columns.map((c: any) => (
                         <option key={c.name} value={c.name}>📊 依「{c.name}」分組彙總</option>
                       ))}
                     </select>
@@ -971,7 +980,7 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                   {(() => {
                     const grp = (editingCard.config as any).groupBy;
                     if (!grp || grp === 'raw_data') return null;
-                    const colDef = columns.find(c => c.name === grp);
+                    const colDef = columns.find((c: any) => c.name === grp);
                     if (!colDef) return null;
                     
                     if (colDef.type === 'date') {
@@ -1012,51 +1021,16 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                   })()}
 
                   {(() => {
-                    const grp = (editingCard.config as any).groupBy;
-                    if (!grp || grp === 'raw_data') return null;
-                    const numericFields = columns.filter(c => c.type === 'number').map(c => c.name);
-                    if (numericFields.length === 0) return null;
-                    
-                    const aggFields = (editingCard.config as any).aggFields || [];
-                    return (
-                      <div className="col-span-1 md:col-span-2">
-                        <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-1.5">複選用來計算的欄位 (SUM)</label>
-                        <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900 p-3 border border-slate-100 dark:border-slate-850 rounded-xl max-h-32 overflow-y-auto">
-                          {numericFields.map(fName => {
-                            const isChecked = aggFields.includes(fName);
-                            return (
-                              <label key={fName} className="flex items-center gap-2 text-xs text-slate-650 dark:text-slate-350 cursor-pointer select-none">
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={() => {
-                                    let nextAgg: string[];
-                                    if (isChecked) {
-                                      nextAgg = aggFields.filter((f: string) => f !== fName);
-                                    } else {
-                                      nextAgg = [...aggFields, fName];
-                                    }
-                                    updateCardConfig(editingCard.id, { aggFields: nextAgg });
-                                  }}
-                                  className="rounded border-slate-300 text-brand focus:ring-brand w-3.5 h-3.5"
-                                />
-                                <span className="truncate">{fName}</span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })()}
-
-                  {(() => {
                     const config = editingCard.config as any;
                     const currentFields = config.fields || [];
+                    const aggTypeMap = config.aggTypeMap || {};
+                    const isGrouped = config.groupBy && config.groupBy !== 'raw_data';
+                    const groupField = config.groupBy;
                     
                     // Filter checked columns in the actual spreadsheet columns order
-                    const checkedCols = currentFields.filter((name: string) => columns.some(c => c.name === name));
+                    const checkedCols = currentFields.filter((name: string) => columns.some((c: any) => c.name === name));
                     // Get columns that are not checked
-                    const uncheckedCols = columns.filter(c => !currentFields.includes(c.name)).map(c => c.name);
+                    const uncheckedCols = columns.filter((c: any) => !currentFields.includes(c.name)).map((c: any) => c.name);
                     
                     const toggleCol = (name: string, isChecked: boolean) => {
                       let nextFields: string[];
@@ -1068,7 +1042,7 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                       updateCardConfig(editingCard.id, { fields: nextFields });
                     };
                     
-                    const moveField = (field: string, direction: -1 | 1) => {
+                    const moveField = (field: string, direction: number) => {
                       const index = currentFields.indexOf(field);
                       if (index === -1) return;
                       const newIndex = index + direction;
@@ -1081,44 +1055,71 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                       updateCardConfig(editingCard.id, { fields: nextFields });
                     };
 
+                    const changeAggType = (colName: string, type: string) => {
+                      const nextMap = { ...aggTypeMap, [colName]: type };
+                      updateCardConfig(editingCard.id, { aggTypeMap: nextMap });
+                    };
+
                     return (
                       <div className="col-span-1 md:col-span-2">
                         <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-2">呈現的資料欄位勾選與排序</label>
-                        <div className="bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-850 rounded-xl p-3 space-y-2 max-h-56 overflow-y-auto">
-                          {checkedCols.map((name: string, idx: number) => (
-                            <div key={name} className="flex items-center justify-between bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 p-2 rounded-lg gap-2 group hover:border-brand/40 transition-all">
-                              <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none truncate flex-1">
-                                <input
-                                  type="checkbox"
-                                  checked={true}
-                                  onChange={() => toggleCol(name, true)}
-                                  className="rounded border-slate-300 text-brand focus:ring-brand w-3.5 h-3.5"
-                                />
-                                <span className="truncate font-semibold">{name}</span>
-                              </label>
-                              
-                              <div className="flex items-center gap-1 shrink-0">
-                                <button
-                                  type="button"
-                                  disabled={idx === 0}
-                                  onClick={() => moveField(name, -1)}
-                                  className="p-1 rounded text-slate-400 hover:text-brand hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer text-xs"
-                                  title="向上移動"
-                                >
-                                  ▲
-                                </button>
-                                <button
-                                  type="button"
-                                  disabled={idx === checkedCols.length - 1}
-                                  onClick={() => moveField(name, 1)}
-                                  className="p-1 rounded text-slate-400 hover:text-brand hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer text-xs"
-                                  title="向下移動"
-                                >
-                                  ▼
-                                </button>
+                        <div className="bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-855 rounded-xl p-3 space-y-2 max-h-64 overflow-y-auto">
+                          {checkedCols.map((name: string, idx: number) => {
+                            const colDef = columns.find((c: any) => c.name === name);
+                            const isNum = colDef?.type === 'number';
+                            const currentAgg = aggTypeMap[name] || (isNum ? 'sum' : 'none');
+                            const showAggDropdown = isGrouped && name !== groupField;
+
+                            return (
+                              <div key={name} className="flex flex-col sm:flex-row sm:items-center justify-between bg-white dark:bg-slate-800 border border-slate-200/60 dark:border-slate-700/60 p-2 rounded-lg gap-2 group hover:border-brand/40 transition-all">
+                                <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer select-none truncate flex-1">
+                                  <input
+                                    type="checkbox"
+                                    checked={true}
+                                    onChange={() => toggleCol(name, true)}
+                                    className="rounded border-slate-300 text-brand focus:ring-brand w-3.5 h-3.5"
+                                  />
+                                  <span className="truncate font-semibold">{name}</span>
+                                </label>
+                                
+                                <div className="flex items-center gap-2 shrink-0">
+                                  {showAggDropdown && (
+                                    <select
+                                      value={currentAgg}
+                                      onChange={(e) => changeAggType(name, e.target.value)}
+                                      className="text-[10px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-1.5 py-0.5 focus:ring-1 focus:ring-brand focus:outline-none font-bold text-slate-600 dark:text-slate-300 cursor-pointer"
+                                    >
+                                      <option value="none">無 (去重字串)</option>
+                                      <option value="sum">加總 (SUM)</option>
+                                      <option value="count">計數 (COUNT)</option>
+                                      <option value="avg">平均 (AVG)</option>
+                                    </select>
+                                  )}
+
+                                  <div className="flex items-center gap-0.5">
+                                    <button
+                                      type="button"
+                                      disabled={idx === 0}
+                                      onClick={() => moveField(name, -1)}
+                                      className="p-1 rounded text-slate-400 hover:text-brand hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer text-xs"
+                                      title="向上移動"
+                                    >
+                                      ▲
+                                    </button>
+                                    <button
+                                      type="button"
+                                      disabled={idx === checkedCols.length - 1}
+                                      onClick={() => moveField(name, 1)}
+                                      className="p-1 rounded text-slate-400 hover:text-brand hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-30 disabled:hover:bg-transparent transition-colors cursor-pointer text-xs"
+                                      title="向下移動"
+                                    >
+                                      ▼
+                                    </button>
+                                  </div>
+                                </div>
                               </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                           
                           {checkedCols.length > 0 && uncheckedCols.length > 0 && (
                             <div className="border-t border-slate-200 dark:border-slate-800 my-2 pt-2 text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-wider">未選取欄位</div>

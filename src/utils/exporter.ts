@@ -196,21 +196,24 @@ export async function exportDashboardHTML(params: {
     function processTableData(config, filteredRecords, paging) {
       const isGrouped = config.groupBy && config.groupBy !== 'raw_data';
       const groupField = config.groupBy;
-      const aggFields = config.aggFields || [];
+      const aggTypeMap = config.aggTypeMap || {};
+      
+      // Get checked fields in user's custom sort order
+      let checkedCols = config.fields && config.fields.length > 0 ? config.fields : columns.map(c => c.name);
       
       let tableCols = [];
       if (!isGrouped) {
-        tableCols = config.fields && config.fields.length > 0 ? config.fields : columns.map(c => c.name);
+        tableCols = checkedCols;
       } else {
-        const otherChecked = (config.fields || []).filter(f => f !== groupField && !aggFields.includes(f));
-        tableCols = [groupField, ...aggFields, ...otherChecked];
+        const filteredChecked = checkedCols.filter(f => f !== groupField);
+        tableCols = [groupField, ...filteredChecked];
       }
 
       // 1. Search Filter
-      let tableData = filteredRecords;
+      let searchMatched = filteredRecords;
       if (paging.searchTerm.trim() !== '') {
         const query = paging.searchTerm.toLowerCase();
-        tableData = tableData.filter(row => {
+        searchMatched = searchMatched.filter(row => {
           return columns.some(col => {
             const val = String(row[col.name] !== undefined && row[col.name] !== null ? row[col.name] : '');
             return val.toLowerCase().includes(query);
@@ -219,6 +222,7 @@ export async function exportDashboardHTML(params: {
       }
 
       // 2. Grouping
+      let tableData = searchMatched;
       if (isGrouped) {
         const groupColDef = columns.find(c => c.name === groupField);
         const groupColType = groupColDef ? groupColDef.type : 'text';
@@ -295,9 +299,15 @@ export async function exportDashboardHTML(params: {
             if (col === groupField) return;
             const cDef = columns.find(c => c.name === col);
             const isNumeric = cDef ? cDef.type === 'number' : false;
+            const aggType = aggTypeMap[col] || (isNumeric ? 'sum' : 'none');
             
-            if (aggFields.includes(col) || isNumeric) {
+            if (aggType === 'sum') {
               rowObj[col] = groupRows.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+            } else if (aggType === 'count') {
+              rowObj[col] = groupRows.length;
+            } else if (aggType === 'avg') {
+              const nums = groupRows.map(r => Number(r[col])).filter(n => !isNaN(n));
+              rowObj[col] = nums.length > 0 ? nums.reduce((acc, n) => acc + n, 0) / nums.length : 0;
             } else {
               const uniqueVals = Array.from(new Set(groupRows.map(r => String(r[col] !== undefined && r[col] !== null ? r[col] : '')).filter(Boolean)));
               if (uniqueVals.length === 0) {
@@ -333,7 +343,7 @@ export async function exportDashboardHTML(params: {
         });
       }
 
-      // 4. Subtotal Row
+      // 4. Subtotal Row directly calculated from raw searchMatched records
       let subtotalRow = null;
       if (isGrouped && tableData.length > 0) {
         subtotalRow = { [groupField]: '小計 (Total)' };
@@ -341,8 +351,15 @@ export async function exportDashboardHTML(params: {
           if (col === groupField) return;
           const cDef = columns.find(c => c.name === col);
           const isNumeric = cDef ? cDef.type === 'number' : false;
-          if (aggFields.includes(col) || isNumeric) {
-            subtotalRow[col] = tableData.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+          const aggType = aggTypeMap[col] || (isNumeric ? 'sum' : 'none');
+          
+          if (aggType === 'sum') {
+            subtotalRow[col] = searchMatched.reduce((acc, r) => acc + (Number(r[col]) || 0), 0);
+          } else if (aggType === 'avg') {
+            const nums = searchMatched.map(r => Number(r[col])).filter(n => !isNaN(n));
+            subtotalRow[col] = nums.length > 0 ? nums.reduce((acc, n) => acc + n, 0) / nums.length : 0;
+          } else if (aggType === 'count') {
+            subtotalRow[col] = searchMatched.length;
           } else {
             subtotalRow[col] = '';
           }
@@ -586,13 +603,14 @@ export async function exportDashboardHTML(params: {
           cardWrapper.appendChild(footer);
 
         } else if (card.type === 'chart') {
+          cardWrapper.classList.add('justify-between');
           const config = card.config;
           const body = document.createElement('div');
           
           let chartH = 'h-60';
           if (card.h === 'lg') chartH = 'h-96';
           else if (card.h === 'sm') chartH = 'h-28';
-          body.className = 'flex-1 relative flex items-center justify-center w-full ' + chartH;
+          body.className = 'relative flex items-center justify-center w-full ' + chartH;
           
           const canvas = document.createElement('canvas');
           canvas.id = "chart-" + card.id;
@@ -632,8 +650,8 @@ export async function exportDashboardHTML(params: {
       const themeColors = {
         primary: getComputedStyle(document.documentElement).getPropertyValue('--color-brand').trim() || '#4f46e5',
         primaryLight: getComputedStyle(document.documentElement).getPropertyValue('--color-brand-light').trim() || '#a78bfa',
-        text: document.documentElement.classList.contains('dark') ? '#cbd5e1' : '#475569',
-        grid: document.documentElement.classList.contains('dark') ? 'rgba(51, 65, 85, 0.5)' : 'rgba(226, 232, 240, 0.8)'
+        text: document.documentElement.classList.contains('dark') ? '#94a3b8' : '#64748b',
+        grid: document.documentElement.classList.contains('dark') ? 'rgba(51, 65, 85, 0.4)' : 'rgba(226, 232, 240, 0.7)'
       };
 
       const chartType = config.type;
@@ -689,7 +707,7 @@ export async function exportDashboardHTML(params: {
         plugins: {
           legend: {
             display: isPie || isOverlap,
-            labels: { color: themeColors.text, font: { size: 10 } }
+            labels: { color: themeColors.text, font: { size: 10, family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' } }
           }
         }
       };
@@ -788,11 +806,11 @@ export async function exportDashboardHTML(params: {
         options.scales = {
           x: {
             grid: { color: themeColors.grid },
-            ticks: { color: themeColors.text, font: { size: 10 } }
+            ticks: { color: themeColors.text, font: { size: 10, family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' } }
           },
           y: {
             grid: { color: themeColors.grid },
-            ticks: { color: themeColors.text, font: { size: 10 } }
+            ticks: { color: themeColors.text, font: { size: 10, family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' } }
           }
         };
 
@@ -800,7 +818,7 @@ export async function exportDashboardHTML(params: {
         const backgroundColors = chartType === 'pie'
           ? activePieColors
           : chartType === 'area'
-            ? hexToRgba(themeColors.primary, 0.2)
+            ? hexToRgba(themeColors.primary, 0.15)
             : themeColors.primary;
 
         const borderColors = chartType === 'pie'
@@ -821,11 +839,11 @@ export async function exportDashboardHTML(params: {
         options.scales = isPie ? {} : {
           x: {
             grid: { color: themeColors.grid },
-            ticks: { color: themeColors.text, font: { size: 10 } }
+            ticks: { color: themeColors.text, font: { size: 10, family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' } }
           },
           y: {
             grid: { color: themeColors.grid },
-            ticks: { color: themeColors.text, font: { size: 10 } }
+            ticks: { color: themeColors.text, font: { size: 10, family: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif' } }
           }
         };
 
@@ -980,12 +998,12 @@ export async function exportDashboardHTML(params: {
       table.className = 'w-full text-sm text-left border-collapse';
 
       const thead = document.createElement('thead');
-      thead.className = 'bg-slate-50/80 dark:bg-slate-900/50 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider border-b border-slate-105 dark:border-slate-700/50';
+      thead.className = 'bg-slate-50/80 dark:bg-slate-900/50 text-xs font-semibold text-slate-700 dark:text-slate-200 uppercase tracking-wider border-b border-slate-105 dark:border-slate-700/50';
       const headerRow = document.createElement('tr');
 
       fields.forEach(f => {
         const th = document.createElement('th');
-        th.className = 'px-4 py-3 font-semibold text-slate-600 dark:text-slate-355 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/60 select-none';
+        th.className = 'px-4 py-3 font-semibold text-slate-700 dark:text-slate-200 cursor-pointer hover:bg-slate-100/50 dark:hover:bg-slate-800/60 select-none';
         
         const paging = tablePagingState[cardId];
         const isSorted = paging.sortBy === f;
@@ -1055,7 +1073,7 @@ export async function exportDashboardHTML(params: {
         tr.className = 'bg-slate-50/70 dark:bg-slate-900/40 font-extrabold border-t-2 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200';
         fields.forEach(f => {
           const td = document.createElement('td');
-          td.className = 'px-4 py-2.5 font-bold';
+          td.className = 'px-4 py-2.5 font-bold text-brand dark:text-brand-light';
           const rawVal = subtotalRow[f];
           if (typeof rawVal === 'number') {
             td.innerText = rawVal.toLocaleString();
