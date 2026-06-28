@@ -192,6 +192,9 @@ export async function exportDashboardHTML(params: {
       }
     });
 
+    // Local Slicer States: cardId -> selectedValue
+    const localSlicerStates = {};
+
     // Helper to calculate grouped pivot data, search, sort, and subtotal for Table Cards
     function processTableData(config, filteredRecords, paging) {
       const groupByFields = config.groupByFields || (config.groupBy && config.groupBy !== 'raw_data' ? [config.groupBy] : []);
@@ -618,15 +621,53 @@ export async function exportDashboardHTML(params: {
         const header = document.createElement('div');
         header.className = 'flex justify-between items-center mb-4';
         const title = document.createElement('h3');
-        title.className = 'font-bold text-slate-700 dark:text-slate-200 text-base';
+        title.className = 'font-bold text-slate-700 dark:text-slate-200 text-base truncate';
         title.innerText = card.title;
         header.appendChild(title);
         cardWrapper.appendChild(header);
 
+        // --- Local Slicer Filter Applied to Card Data ---
+        let cardData = filteredRecords;
+        const localField = card.config.localSlicerField;
+        const localVal = localSlicerStates[card.id] || '';
+        if (localField && localVal) {
+          cardData = cardData.filter(row => String(row[localField] ?? '') === localVal);
+        }
+
+        // If localField exists, draw select dropdown in the header!
+        if (localField) {
+          const uniqueVals = Array.from(new Set(rawData.map(r => String(r[localField] !== undefined && r[localField] !== null ? r[localField] : ''))))
+            .filter(v => v !== '')
+            .sort();
+
+          const selectEl = document.createElement('select');
+          selectEl.className = 'text-[10px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5 max-w-[120px] focus:ring-1 focus:ring-brand outline-none truncate cursor-pointer';
+          
+          const defaultOpt = document.createElement('option');
+          defaultOpt.value = '';
+          defaultOpt.innerText = '全部 (' + localField + ')';
+          selectEl.appendChild(defaultOpt);
+          
+          uniqueVals.forEach(optVal => {
+            const opt = document.createElement('option');
+            opt.value = optVal;
+            opt.innerText = optVal;
+            if (optVal === localVal) opt.selected = true;
+            selectEl.appendChild(opt);
+          });
+          
+          selectEl.addEventListener('change', () => {
+            localSlicerStates[card.id] = selectEl.value;
+            updateDashboard();
+          });
+          
+          header.appendChild(selectEl);
+        }
+
         // Card Body based on type
         if (card.type === 'indicator') {
           const config = card.config;
-          const result = aggregateValue(filteredRecords, config.field, config.agg);
+          const result = aggregateValue(cardData, config.field, config.agg);
           
           let displayVal = '';
           if (config.agg === 'count') {
@@ -664,7 +705,7 @@ export async function exportDashboardHTML(params: {
 
           const footer = document.createElement('div');
           footer.className = 'text-xs text-slate-400 mt-2 border-t border-slate-50 dark:border-slate-700/40 pt-2';
-          footer.innerText = '運算欄位: ' + config.field + ' (' + getAggLabel(config.agg) + ')';
+          footer.innerText = '運算欄位: ' + config.field + ' (' + getAggLabel(config.agg) + ')' + (localField && localVal ? ' | 篩選: ' + localVal : '');
           cardWrapper.appendChild(footer);
 
         } else if (card.type === 'chart') {
@@ -684,7 +725,7 @@ export async function exportDashboardHTML(params: {
 
           // Render Chart.js in setTimeout to ensure layout is ready
           setTimeout(() => {
-            renderChart(card.id, canvas, filteredRecords, config, card.h);
+            renderChart(card.id, canvas, cardData, config, card.h);
           }, 0);
 
         } else if (card.type === 'data') {

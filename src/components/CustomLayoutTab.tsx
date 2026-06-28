@@ -696,6 +696,19 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                       className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand focus:border-brand outline-none"
                     />
                   </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-1.5">獨立篩選器 (Local Slicer)</label>
+                    <select
+                      value={(editingCard.config as any).localSlicerField || ''}
+                      onChange={(e) => updateCardConfig(editingCard.id, { localSlicerField: e.target.value || undefined })}
+                      className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand focus:outline-none"
+                    >
+                      <option value="">🚫 無 (None)</option>
+                      {columns.map((col) => (
+                        <option key={col.name} value={col.name}>🔍 {col.name}</option>
+                      ))}
+                    </select>
+                  </div>
                 </>
               )}
 
@@ -926,6 +939,19 @@ export const CustomLayoutTab: React.FC<CustomLayoutTabProps> = ({
                         )}
                       </div>
                     )}
+                    <div className="col-span-1 md:col-span-2 border-t border-slate-100 dark:border-slate-800 pt-3 mt-1">
+                      <label className="block text-xs font-bold text-slate-400 dark:text-slate-500 mb-1.5">獨立篩選器 (Local Slicer)</label>
+                      <select
+                        value={conf.localSlicerField || ''}
+                        onChange={(e) => updateCardConfig(editingCard.id, { localSlicerField: e.target.value || undefined })}
+                        className="w-full text-xs bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus:ring-1 focus:ring-brand focus:outline-none"
+                      >
+                        <option value="">🚫 無 (None)</option>
+                        {columns.map((col) => (
+                          <option key={col.name} value={col.name}>🔍 {col.name}</option>
+                        ))}
+                      </select>
+                    </div>
                   </>
                 );
               })()}

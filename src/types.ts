@@ -21,6 +21,7 @@ export interface IndicatorConfig {
   agg: 'sum' | 'avg' | 'min' | 'max' | 'count';
   prefix: string;
   suffix: string;
+  localSlicerField?: string; // Single local slicer field
 }
 
 export interface ThresholdItem {
@@ -40,6 +41,7 @@ export interface ChartConfig {
   hasThreshold?: boolean;   // Enable threshold bands/colors
   thresholds?: ThresholdItem[];
   ringType?: 'full' | 'half'; // Full or half circle progress ring
+  localSlicerField?: string; // Single local slicer field
 }
 
 export interface DataConfig {

@@ -97,6 +97,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
   // Table paging and search: cardId -> { page, search, sortBy, sortDesc }
   const [tableStates, setTableStates] = useState<Record<string, { page: number; search: string; sortBy?: string; sortDesc?: boolean }>>({});
   const [expandedPaths, setExpandedPaths] = useState<Record<string, boolean>>({});
+  const [localSlicerStates, setLocalSlicerStates] = useState<Record<string, string>>({});
 
   // Reset all slicer selections
   const handleResetFilters = () => {
@@ -217,13 +218,14 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
     : (brandColorsLight[theme.name] || brandColorsLight.trust);
 
   // Chart configuration builder
-  const buildChartProps = (card: DashboardCard) => {
+  const buildChartProps = (card: DashboardCard, customData?: any[]) => {
     const config = card.config as any;
     const isDark = theme.mode === 'dark' || (theme.mode === 'system' && typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches);
     
     // Group records by X axis
     const groups: Record<string, any[]> = {};
-    filteredData.forEach((row) => {
+    const dataToUse = customData || filteredData;
+    dataToUse.forEach((row) => {
       const xVal = String(row[config.xAxis] !== undefined ? row[config.xAxis] : '(Blank)');
       if (!groups[xVal]) groups[xVal] = [];
       groups[xVal].push(row);
@@ -586,7 +588,16 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
               if (card.type === 'indicator') {
                 const config = card.config as any;
-                const value = aggregate(filteredData, config.field, config.agg);
+                
+                // Card-level local filter
+                let cardData = filteredData;
+                const localField = config.localSlicerField;
+                const localVal = localSlicerStates[card.id] || '';
+                if (localField && localVal) {
+                  cardData = cardData.filter(row => String(row[localField] ?? '') === localVal);
+                }
+
+                const value = aggregate(cardData, config.field, config.agg);
                 
                 const displayVal = config.agg === 'count'
                   ? value.toLocaleString()
@@ -594,14 +605,32 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                     ? value.toLocaleString(undefined, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
                     : Math.round(value).toLocaleString();
 
+                const localSlicerOptions = localField
+                  ? Array.from(new Set(computedData.map(r => String(r[localField] ?? '')).filter(Boolean))).sort()
+                  : [];
+
                 return (
                   <div
                     key={card.id}
                     className={`${widthClass} ${heightClass} bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-100 dark:border-slate-700/60 flex flex-col`}
                   >
-                    <h3 className="font-bold text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider mb-2">
-                      {card.title}
-                    </h3>
+                    <div className="flex justify-between items-start gap-4 mb-2">
+                      <h3 className="font-bold text-slate-600 dark:text-slate-400 text-xs uppercase tracking-wider">
+                        {card.title}
+                      </h3>
+                      {localField && (
+                        <select
+                          value={localVal}
+                          onChange={(e) => setLocalSlicerStates(prev => ({ ...prev, [card.id]: e.target.value }))}
+                          className="text-[10px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5 max-w-[120px] focus:ring-1 focus:ring-brand outline-none truncate cursor-pointer"
+                        >
+                          <option value="">全部 ({localField})</option>
+                          {localSlicerOptions.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                     <div className="flex items-baseline gap-1 py-3">
                       {config.prefix && <span className="text-lg font-medium text-slate-400">{config.prefix}</span>}
                       <span className="text-3xl font-extrabold text-slate-800 dark:text-white tracking-tight">
@@ -611,6 +640,7 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                     </div>
                     <div className="text-[10px] text-slate-400 border-t border-slate-50 dark:border-slate-850 pt-2 mt-2">
                       運算欄位：{config.field} ({config.agg === 'sum' ? '加總' : config.agg === 'avg' ? '平均' : config.agg === 'count' ? '筆數' : config.agg})
+                      {localField && localVal && ` | 篩選: ${localVal}`}
                     </div>
                   </div>
                 );
@@ -618,18 +648,45 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
 
               if (card.type === 'chart') {
                 const config = card.config as any;
-                const { chartData, chartOptions } = buildChartProps(card);
-                const chartHeightClass = card.h === 'lg' ? 'h-96' : card.h === 'sm' ? 'h-28' : 'h-60';
 
-                const chartKey = `${theme.mode}_${theme.name}_${card.id}`;
+                // Card-level local filter
+                let cardData = filteredData;
+                const localField = config.localSlicerField;
+                const localVal = localSlicerStates[card.id] || '';
+                if (localField && localVal) {
+                  cardData = cardData.filter(row => String(row[localField] ?? '') === localVal);
+                }
+
+                const { chartData, chartOptions } = buildChartProps(card, cardData);
+                const chartHeightClass = card.h === 'lg' ? 'h-96' : card.h === 'sm' ? 'h-28' : 'h-60';
+                const chartKey = `${theme.mode}_${theme.name}_${card.id}_${localVal}`;
+
+                const localSlicerOptions = localField
+                  ? Array.from(new Set(computedData.map(r => String(r[localField] ?? '')).filter(Boolean))).sort()
+                  : [];
+
                 return (
                   <div
                     key={card.id}
                     className={`${widthClass} ${heightClass} bg-white dark:bg-slate-800 rounded-2xl p-6 shadow-sm border border-slate-105 dark:border-slate-700/60 flex flex-col justify-between`}
                   >
-                    <h3 className="font-bold text-slate-750 dark:text-slate-205 text-sm mb-4">
-                      {card.title}
-                    </h3>
+                    <div className="flex justify-between items-start gap-4 mb-4">
+                      <h3 className="font-bold text-slate-750 dark:text-slate-205 text-sm truncate">
+                        {card.title}
+                      </h3>
+                      {localField && (
+                        <select
+                          value={localVal}
+                          onChange={(e) => setLocalSlicerStates(prev => ({ ...prev, [card.id]: e.target.value }))}
+                          className="text-[10px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2 py-0.5 max-w-[120px] focus:ring-1 focus:ring-brand outline-none truncate cursor-pointer"
+                        >
+                          <option value="">全部 ({localField})</option>
+                          {localSlicerOptions.map(opt => (
+                            <option key={opt} value={opt}>{opt}</option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
                     <div className={`${chartHeightClass} relative w-full flex items-center justify-center`}>
                       {config.type === 'pie' ? (
                         <Doughnut key={chartKey} data={chartData} options={chartOptions} />
@@ -637,10 +694,10 @@ export const DashboardTab: React.FC<DashboardTabProps> = ({
                         <>
                           <Doughnut key={chartKey} data={chartData} options={chartOptions} />
                           {(() => {
-                            const actual = aggregate(filteredData, config.yAxis, config.agg);
+                            const actual = aggregate(cardData, config.yAxis, config.agg);
                             const plan = config.isPlanStatic 
                               ? (config.staticPlanValue || 100) 
-                              : aggregate(filteredData, config.planField || config.yAxis, config.agg);
+                              : aggregate(cardData, config.planField || config.yAxis, config.agg);
                             const pct = plan > 0 ? (actual / plan) * 100 : 0;
                             
                             return (
