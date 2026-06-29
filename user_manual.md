@@ -92,10 +92,20 @@ FreeDash 提供長條圖、折線圖、圓餅圖、進度環 (Progress Ring) 及
 
 ---
 
-## 五、 部署至 Netlify 平台
-部署成功後，您與您的團隊可以直接透過網址在線存取看板。
+## 五、 在線託管平台 (Hosting)
 
+### 1. Netlify 平台
+部署成功後，您與您的團隊可以直接透過網址在線存取看板。
 * **正式版在線 URL**：[https://freedash-ezbuilder.netlify.app](https://freedash-ezbuilder.netlify.app)
 * **管理與部署監控頁面**：[https://app.netlify.com/projects/freedash-ezbuilder](https://app.netlify.com/projects/freedash-ezbuilder)
 * **更新發佈**：在本地修改程式碼並執行 `npm run build` 後，直接使用 CLI 工具或 MCP 整合即可一鍵發佈更新。
+
+### 2. GitHub Pages 平台
+本專案亦已啟用 GitHub Pages 進行同步託管與發佈。
+* **GitHub Pages 在線 URL**：[https://patrickwang77.github.io/freedash-dashboard-builder/](https://patrickwang77.github.io/freedash-dashboard-builder/)
+* **更新發佈方式**：本專案配置了自動化發佈腳本，僅需在專案根目錄下執行：
+  ```bash
+  node scratch/deploy_gh_pages.js
+  ```
+  即可自動完成生產環境建置，並將最新的靜態檔案推送到 `gh-pages` 分支完成發佈。
 
