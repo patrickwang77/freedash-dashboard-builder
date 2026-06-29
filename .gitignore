@@ -29,3 +29,8 @@ dist-ssr
 # Agent directories
 .gemini/
 .agents/
+
+# Excel & CSV data files
+*.xlsx
+*.xls
+*.csv
